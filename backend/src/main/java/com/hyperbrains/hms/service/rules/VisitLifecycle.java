@@ -79,4 +79,39 @@ public final class VisitLifecycle {
     public static boolean isOpen(VisitStatus status) {
         return status != VisitStatus.CLOSED && status != VisitStatus.CANCELLED && status != VisitStatus.ADMITTED;
     }
+
+    /**
+     * Whether a bill may be collected against a visit in this status.
+     *
+     * <p>Two situations qualify, and they are genuinely different situations:
+     * <ul>
+     *   <li>{@code WAITING_PAYMENT} — the outpatient desk, where the bill is finalised and paying ends
+     *       the encounter;</li>
+     *   <li>{@code ADMITTED} — an inpatient stay, whose bill runs for the whole stay and is collected
+     *       against while the patient is still in the building. That is what a deposit or an instalment
+     *       is.</li>
+     * </ul>
+     *
+     * <p>Everything else is refused: before the payment stage the total is still moving as results come
+     * back, and after {@code CLOSED} the money is already in.
+     */
+    public static boolean acceptsPayment(VisitStatus status) {
+        return status == VisitStatus.WAITING_PAYMENT || status == VisitStatus.ADMITTED;
+    }
+
+    /**
+     * Whether settling the bill is what ends the encounter.
+     *
+     * <p>True on the outpatient path. For an admission it is false by definition: the bill is collected
+     * against for the length of the stay, so a payment is a payment and not a discharge — a stay ends
+     * when a clinician says the patient may go home, which is not a financial question.
+     *
+     * <p>Deliberately a separate question from {@link VisitStatusDeriver#participatesInOutpatientPath},
+     * not a duplicate of it: one asks whether a visit heads for the payment desk at all, the other
+     * whether arriving there ends it. The two agree for every type today, and a test asserts that, so a
+     * future visit type that splits them has to be a decision rather than an accident.
+     */
+    public static boolean closesOnBillSettlement(VisitType type) {
+        return type != VisitType.ADMISSION;
+    }
 }

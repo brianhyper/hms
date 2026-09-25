@@ -35,6 +35,42 @@ class VisitLifecycleTest {
         assertThatThrownBy(() -> VisitLifecycle.initialStatus(VisitType.ADMISSION)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Only two states can be collected against, and the exhaustive walk is the point: a status quietly
+     * becoming payable is a decision, not something to discover in production.
+     */
+    @Test
+    void aBillCanOnlyBeCollectedAgainstAtTheDeskOrDuringAStay() {
+        for (VisitStatus status : VisitStatus.values()) {
+            boolean expected = status == VisitStatus.WAITING_PAYMENT || status == VisitStatus.ADMITTED;
+            assertThat(VisitLifecycle.acceptsPayment(status)).as("payment against a %s visit", status).isEqualTo(expected);
+        }
+    }
+
+    /** Taking the money ends an outpatient encounter. An admission is ended by a discharge. */
+    @Test
+    void settlingTheBillEndsEveryEncounterExceptAnAdmission() {
+        for (VisitType type : VisitType.values()) {
+            assertThat(VisitLifecycle.closesOnBillSettlement(type))
+                .as("settling ends a %s visit", type)
+                .isEqualTo(type != VisitType.ADMISSION);
+        }
+    }
+
+    /**
+     * The two questions are asked in different places and must not drift apart: one asks whether a visit
+     * heads for the payment desk at all, the other whether arriving there ends it. They agree for every
+     * type today, and this is what makes a future type that splits them a deliberate change.
+     */
+    @Test
+    void theInpatientExceptionIsTheSameForBothRules() {
+        for (VisitType type : VisitType.values()) {
+            assertThat(VisitLifecycle.closesOnBillSettlement(type))
+                .as("settlement-closes and out-patient-path disagree for %s", type)
+                .isEqualTo(VisitStatusDeriver.participatesInOutpatientPath(type));
+        }
+    }
+
     @Test
     void emergencyOutranksUrgentOutranksNormal() {
         assertThat(VisitLifecycle.queueWeight(VisitPriority.EMERGENCY)).isLessThan(VisitLifecycle.queueWeight(VisitPriority.URGENT));

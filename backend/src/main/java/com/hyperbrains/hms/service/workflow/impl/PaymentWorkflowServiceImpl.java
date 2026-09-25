@@ -9,7 +9,6 @@ import com.hyperbrains.hms.domain.Visit;
 import com.hyperbrains.hms.domain.enumeration.BillStatus;
 import com.hyperbrains.hms.domain.enumeration.PaymentConfirmationStatus;
 import com.hyperbrains.hms.domain.enumeration.PaymentMethod;
-import com.hyperbrains.hms.domain.enumeration.VisitStatus;
 import com.hyperbrains.hms.repository.BillLineItemRepository;
 import com.hyperbrains.hms.repository.BillRepository;
 import com.hyperbrains.hms.repository.PaymentRepository;
@@ -23,6 +22,7 @@ import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.dto.view.BillViewDTO;
 import com.hyperbrains.hms.service.dto.view.RecordPaymentRequestDTO;
 import com.hyperbrains.hms.service.rules.BillSettlement;
+import com.hyperbrains.hms.service.rules.VisitLifecycle;
 import com.hyperbrains.hms.service.workflow.PaymentWorkflowService;
 import com.hyperbrains.hms.service.workflow.PrescriptionWorkflowService;
 import com.hyperbrains.hms.service.workflow.VisitStatusService;
@@ -104,10 +104,12 @@ public class PaymentWorkflowServiceImpl implements PaymentWorkflowService {
             throw BusinessRuleViolationException.of("billAlreadyPaid", "bill", "Bill " + bill.getId() + " has already been settled");
         }
 
-        if (visit.getStatus() != VisitStatus.WAITING_PAYMENT) {
+        if (!VisitLifecycle.acceptsPayment(visit.getStatus())) {
             // The bill is only finalised once the visit reaches the payment stage: before that the total
             // is still moving as results come back and orders resolve, so collecting against it would
-            // collect against a figure that is about to change.
+            // collect against a figure that is about to change. An admitted visit is the exception —
+            // its bill runs for the length of the stay and is collected against while the patient is
+            // still in the building.
             throw BusinessRuleViolationException.of(
                 "visitNotAwaitingPayment",
                 "visit",
@@ -115,7 +117,7 @@ public class PaymentWorkflowServiceImpl implements PaymentWorkflowService {
                 visitId +
                 " is " +
                 visit.getStatus() +
-                ": its bill is not finalised until the visit is waiting to be paid"
+                ": its bill is not finalised until the visit is waiting to be paid or the patient is admitted"
             );
         }
 
@@ -245,9 +247,17 @@ public class PaymentWorkflowServiceImpl implements PaymentWorkflowService {
     /**
      * Everything that becomes true once the bill is settled.
      *
-     * <p>The order matters: medicine is released to the pharmacy first, then the visit is closed.
-     * Closing first would mean a failure in between left a closed visit whose prescription could never
-     * be dispensed, since the pharmacy queue only accepts released prescriptions.
+     * <p>The order matters: medicine is released to the pharmacy first, then the encounter is closed if
+     * settling is what ends it. Closing first would mean a failure in between left a closed visit whose
+     * prescription could never be dispensed, since the pharmacy queue only accepts released
+     * prescriptions.
+     *
+     * <p><strong>Being settled is not the same as being over.</strong> For an outpatient the two
+     * coincide — the desk takes the money and the encounter is done. An admitted patient's bill is
+     * collected against for the length of the stay, so a payment (a deposit, an instalment, or the
+     * balance at the end) must leave the visit where it is; the stay ends at discharge, which is a
+     * clinical decision. Closing here would end a running admission and strand the bed and the ward's
+     * outstanding work.
      */
     private void settleEncounter(Visit visit, Bill bill) {
         List<Prescription> prescriptions = prescriptionRepository.findByVisitId(visit.getId());
@@ -256,7 +266,16 @@ public class PaymentWorkflowServiceImpl implements PaymentWorkflowService {
             prescriptionService.markPaid(prescription.getId());
         }
 
-        visitStatusService.onBillPaid(visit.getId());
+        if (VisitLifecycle.closesOnBillSettlement(visit.getType())) {
+            visitStatusService.onBillPaid(visit.getId());
+        } else {
+            LOG.debug(
+                "Bill {} settled; visit {} stays {} because settling is not what ends an admission",
+                bill.getId(),
+                visit.getId(),
+                visit.getStatus()
+            );
+        }
 
         auditLogService.record(
             AuditLogService.Entry.of(AuditActions.BILL_PAID, "Bill", bill.getId()).withDetails(

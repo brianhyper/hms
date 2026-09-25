@@ -16,6 +16,7 @@ import com.hyperbrains.hms.service.rules.PrescriptionLifecycle;
 import com.hyperbrains.hms.service.rules.VisitStatusDeriver;
 import com.hyperbrains.hms.service.workflow.BillingService;
 import com.hyperbrains.hms.service.workflow.VisitStatusService;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -152,7 +153,9 @@ public class VisitStatusServiceImpl implements VisitStatusService {
         Visit visit = loadVisit(visitId);
         if (visit.getStatus() != VisitStatus.WAITING_PAYMENT) {
             // Closing anything other than a visit that was actually at the desk would end an encounter
-            // that still has clinical work or an unsettled bill against it.
+            // that still has clinical work or an unsettled bill against it. An admitted visit is the
+            // case that matters most: its bill is collected against mid-stay, so settlement must not
+            // close it — discharge does.
             throw BusinessRuleViolationException.of(
                 "visitNotAwaitingPayment",
                 "visit",
@@ -160,6 +163,19 @@ public class VisitStatusServiceImpl implements VisitStatusService {
             );
         }
         return moveTo(visit, VisitStatus.CLOSED, "bill settled in full");
+    }
+
+    @Override
+    public VisitStatus onDischarged(Long visitId) {
+        Visit visit = loadVisit(visitId);
+        if (visit.getStatus() != VisitStatus.ADMITTED) {
+            throw BusinessRuleViolationException.of(
+                "visitNotAdmitted",
+                "visit",
+                "Visit " + visitId + " is " + visit.getStatus() + ", so it is not an admission waiting to be discharged"
+            );
+        }
+        return moveTo(visit, VisitStatus.CLOSED, "patient discharged");
     }
 
     private VisitStatus applyDerivation(Visit visit) {
@@ -196,6 +212,11 @@ public class VisitStatusServiceImpl implements VisitStatusService {
 
         VisitStatus previous = visit.getStatus();
         visit.setStatus(next);
+        if (next == VisitStatus.CLOSED) {
+            // This is the single place a visit closes, so it is the single place that has to stamp the
+            // time. Nothing re-opens a closed visit, so it never has to be cleared afterwards.
+            visit.setClosedAt(Instant.now());
+        }
         visit = visitRepository.save(visit);
 
         auditLogService.record(

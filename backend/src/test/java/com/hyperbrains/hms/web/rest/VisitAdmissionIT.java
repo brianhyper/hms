@@ -12,6 +12,7 @@ import com.hyperbrains.hms.domain.LabTest;
 import com.hyperbrains.hms.domain.Patient;
 import com.hyperbrains.hms.domain.Prescription;
 import com.hyperbrains.hms.domain.Visit;
+import com.hyperbrains.hms.domain.enumeration.BillStatus;
 import com.hyperbrains.hms.domain.enumeration.ConsultationStatus;
 import com.hyperbrains.hms.domain.enumeration.OrderType;
 import com.hyperbrains.hms.domain.enumeration.PaymentMethod;
@@ -42,6 +43,7 @@ import com.hyperbrains.hms.service.HospitalIdService;
 import com.hyperbrains.hms.service.dto.ConsultationDTO;
 import com.hyperbrains.hms.service.dto.VisitDTO;
 import com.hyperbrains.hms.service.dto.view.AdmitPatientRequestDTO;
+import com.hyperbrains.hms.service.dto.view.BillViewDTO;
 import com.hyperbrains.hms.service.dto.view.EnterResultRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PlaceDiagnosticOrderRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PlacePrescriptionRequestDTO;
@@ -59,6 +61,7 @@ import com.hyperbrains.hms.service.workflow.PaymentWorkflowService;
 import com.hyperbrains.hms.service.workflow.PrescriptionWorkflowService;
 import com.hyperbrains.hms.service.workflow.TriageService;
 import com.hyperbrains.hms.service.workflow.VisitIntakeService;
+import com.hyperbrains.hms.service.workflow.VisitStatusService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
@@ -104,6 +107,9 @@ class VisitAdmissionIT {
 
     @Autowired
     private PaymentWorkflowService paymentService;
+
+    @Autowired
+    private VisitStatusService visitStatusService;
 
     @Autowired
     private VisitRepository visitRepository;
@@ -359,6 +365,51 @@ class VisitAdmissionIT {
         assertThat(visitRepository.findById(visit.getId()).orElseThrow().getStatus()).isEqualTo(VisitStatus.ADMITTED);
     }
 
+    // ---------------------------------------------------------------- settled is not over
+
+    /**
+     * The seam between Phase 1 and Phase 2, tested end to end.
+     *
+     * <p>Three things used to happen together when a bill was settled: the money was recorded, medicine
+     * was released, and the encounter was closed. For a stay they are three different moments — the bill
+     * is collected against while the patient is still in, so none of the three may be assumed to be the
+     * others.
+     */
+    @Test
+    void anAdmittedVisitCanBePaidForAndIsEndedByDischargeRatherThanByPayment() {
+        Visit visit = visitInConsultation();
+        Long visitId = visit.getId();
+        placePrescription(visitId);
+        consultationService.complete(visit.getConsultation().getId(), notes("Fever", "Chest crackles"));
+        assertThat(visitRepository.findById(visitId).orElseThrow().getStatus()).isEqualTo(VisitStatus.WAITING_PAYMENT);
+
+        // A patient who deteriorates while waiting to settle is an ordinary case, and the bill simply
+        // keeps running — the admission is from the payment stage, which used to be a closed door.
+        admissionService.admit(visitId, admit("Admitted while waiting to settle"));
+        Long prescriptionId = prescriptionRepository.findByVisitId(visitId).getFirst().getId();
+
+        BillViewDTO bill = paymentService.recordPayment(visitId, payment(totalOf(visitId), "RCPT-DISCHARGE-IT"));
+
+        assertThat(bill.getStatus()).isEqualTo(BillStatus.PAID);
+        // Money is in, encounter is still running.
+        assertThat(visitRepository.findById(visitId).orElseThrow().getStatus()).isEqualTo(VisitStatus.ADMITTED);
+        // Medicine follows the money rather than the closure the money no longer performs.
+        assertThat(prescriptionRepository.findById(prescriptionId).orElseThrow().getStatus()).isEqualTo(
+            PrescriptionStatus.READY_FOR_DISPENSE
+        );
+
+        // Discharge is what ends the stay, and it stamps the closure time.
+        visitStatusService.onDischarged(visitId);
+        Visit closed = visitRepository.findById(visitId).orElseThrow();
+        assertThat(closed.getStatus()).isEqualTo(VisitStatus.CLOSED);
+        assertThat(closed.getClosedAt()).isNotNull();
+
+        // And a stay can only be ended once.
+        assertThatThrownBy(() -> visitStatusService.onDischarged(visitId))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("not an admission waiting to be discharged");
+    }
+
     // ---------------------------------------------------------------- what the action refuses
 
     @Test
@@ -521,6 +572,12 @@ class VisitAdmissionIT {
         // consultation fee is a real figure, so settling this bill collects something. The number is
         // distinctive because a receipt is the hospital's record of a payment and must not be reused.
         request.setReceiptNumber("RCPT-ADMISSION-IT");
+        return request;
+    }
+
+    private static RecordPaymentRequestDTO payment(BigDecimal amount, String receiptNumber) {
+        RecordPaymentRequestDTO request = payment(amount);
+        request.setReceiptNumber(receiptNumber);
         return request;
     }
 

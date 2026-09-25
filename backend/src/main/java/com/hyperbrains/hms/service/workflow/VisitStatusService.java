@@ -18,6 +18,11 @@ import com.hyperbrains.hms.domain.enumeration.VisitStatus;
  *
  * <p>Centralised deliberately: the specification requires the check to run on every such event, and
  * scattering the same predicate across four services is how one of them ends up not running it.
+ *
+ * <p>The methods below those three are explicit transitions rather than derivations. They arrive from
+ * outside the outstanding-work calculation and are named separately because each means something that
+ * calculation cannot see: a prescription was withdrawn (the bill shrank), the bill was settled, the
+ * patient was referred out, the patient was discharged.
  */
 public interface VisitStatusService {
 
@@ -69,4 +74,17 @@ public interface VisitStatusService {
      * as "nothing further is pending" rather than waiting on work that will never resolve.
      */
     VisitStatus onReferralCreated(Long visitId);
+
+    /**
+     * Called when the patient has been signed out, which is the only thing that ends an admission.
+     *
+     * <p>Deliberately not part of the derivation: discharge is a clinical decision, not a computed
+     * consequence of what happens to be outstanding. And deliberately not part of
+     * {@link #onBillPaid}: an admitted patient's bill is collected against for the length of the stay,
+     * so settlement happens while the encounter is still running and must not close it.
+     *
+     * <p>The billing gate (the bill settled or covered by an agreed plan) belongs to the discharge
+     * action, not here — this method knows about the visit, not about money.
+     */
+    VisitStatus onDischarged(Long visitId);
 }
