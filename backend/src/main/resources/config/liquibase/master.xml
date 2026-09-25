@@ -34,6 +34,17 @@
     <include file="config/liquibase/changelog/20260924091803_added_entity_BillLineItem.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260924091804_added_entity_Payment.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260924091805_added_entity_AuditLog.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124302_added_entity_BedType.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124303_added_entity_Ward.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124304_added_entity_Bed.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124305_added_entity_WardCover.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124306_added_entity_Admission.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124307_added_entity_AdmissionTransfer.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124308_added_entity_InpatientVitals.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124309_added_entity_DoctorOrder.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124310_added_entity_OrderExecution.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124311_added_entity_AdHocCharge.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124312_added_entity_PaymentPlan.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20260924091744_added_entity_constraints_Patient.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260924091746_added_entity_constraints_Appointment.xml" relativeToChangelogFile="false"/>
@@ -50,6 +61,16 @@
     <include file="config/liquibase/changelog/20260924091803_added_entity_constraints_BillLineItem.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260924091804_added_entity_constraints_Payment.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260924091805_added_entity_constraints_AuditLog.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124303_added_entity_constraints_Ward.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124304_added_entity_constraints_Bed.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124305_added_entity_constraints_WardCover.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124306_added_entity_constraints_Admission.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124307_added_entity_constraints_AdmissionTransfer.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124308_added_entity_constraints_InpatientVitals.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124309_added_entity_constraints_DoctorOrder.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124310_added_entity_constraints_OrderExecution.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124311_added_entity_constraints_AdHocCharge.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925124312_added_entity_constraints_PaymentPlan.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->
 
     <include file="config/liquibase/changelog/20260924120000_added_phase1_authorities.xml" relativeToChangelogFile="false"/>
@@ -60,5 +81,6 @@
     <include file="config/liquibase/changelog/20260924170000_added_phase1_audit_field.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260925120000_added_phase1_dev_users.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260925130000_added_phase1_consultation_fee.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260925140000_added_phase2_inpatient.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

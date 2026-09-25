@@ -1,0 +1,11 @@
+id;admitted_at;admission_reason;status;discharged_at;discharge_note;visit_id;admitting_doctor_id;primary_doctor_id
+1;2026-09-25T10:20:25;unless;ADMITTED;2026-09-24T18:55:13;aw;1;1;1
+2;2026-09-24T23:32:53;paltry second-hand;PENDING_BED;2026-09-24T20:08:24;right if;2;2;2
+3;2026-09-25T07:38:56;harp ouch;ADMITTED;2026-09-25T05:22:28;grumpy mmm saloon;3;1;2
+4;2026-09-24T20:46:28;if;DISCHARGED;2026-09-25T01:08:45;council yippee;4;2;2
+5;2026-09-24T17:53:59;publication self-assured;ADMITTED;2026-09-24T20:16:06;before categorise;5;2;2
+6;2026-09-25T07:54:57;through opposite developing;PENDING_BED;2026-09-24T14:14:22;yowza rusty where;6;1;2
+7;2026-09-25T10:10:57;tectonics tut;ADMITTED;2026-09-25T10:53:28;alongside;7;1;1
+8;2026-09-24T22:56:29;if;DISCHARGED;2026-09-25T05:16:20;wound gray towards;8;2;1
+9;2026-09-24T17:16:21;sharply joyously;PENDING_BED;2026-09-24T19:52:24;darn accountability drat;9;1;2
+10;2026-09-25T12:42:50;freight;PENDING_BED;2026-09-24T21:25:19;signature swelter pfft;10;2;2

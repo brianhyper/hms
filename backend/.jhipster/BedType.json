@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "changelogDate": "20260925124302"
+  },
+  "applications": ["*"],
+  "documentation": "Bed categories are per-hospital data, not a fixed enum: ICU exists in one\\nhospital and not in the next. Super Admin managed, like Department.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "unique", "maxlength"],
+      "fieldValidateRulesMaxlength": "80"
+    },
+    {
+      "fieldName": "defaultDailyRate",
+      "fieldType": "BigDecimal",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "active",
+      "fieldType": "Boolean",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "name": "BedType",
+  "relationships": [],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

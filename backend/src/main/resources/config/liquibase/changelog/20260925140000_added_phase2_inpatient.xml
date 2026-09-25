@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 2 (inpatient): the constraints the JDL cannot express.
+
+        Everything else about these entities is generated. These five changes are here because
+        JHipster's JDL has no way to say "a unique index, but only where the row is still active",
+        and because optimistic locking is an annotation on the entity rather than a JDL field —
+        exactly the same reason Phase 1's version columns live in
+        20260924130000_added_phase1_model_round1.xml rather than in the JDL.
+
+        Two of these are partial unique indexes. Postgres is the only database this project runs
+        on (dev, test and prod all use it), so raw SQL is acceptable here in the same way the
+        Phase 1 registration and pharmacy changelogs already use it.
+    -->
+    <changeSet id="20260925140000-1" author="hms">
+        <comment>
+            Optimistic locking on Bed. Assigning a bed is the one place in Phase 2 where two
+            people genuinely race for the same row: two nurses putting two patients into the same
+            free bed at the same moment. Without a version column one of them silently wins and
+            the bed holds two patients, which is not a state anything can recover from.
+        </comment>
+        <addColumn tableName="bed">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260925140000-2" author="hms">
+        <comment>
+            A bed number is unique within its ward, not across the hospital: ward A and ward B may
+            each legitimately have a bed 1.
+        </comment>
+        <addUniqueConstraint
+            columnNames="ward_id, bed_number"
+            tableName="bed"
+            constraintName="ux_bed__ward_id_bed_number"/>
+    </changeSet>
+
+    <changeSet id="20260925140000-3" author="hms">
+        <comment>
+            One admission per visit. The entity models this as a ManyToOne because a unidirectional
+            relationship keeps the generator away from Phase 1's hand-tuned entities, so the
+            one-to-one-ness is enforced here instead of by a JPA annotation.
+        </comment>
+        <addUniqueConstraint
+            columnNames="visit_id"
+            tableName="admission"
+            constraintName="ux_admission__visit_id"/>
+    </changeSet>
+
+    <changeSet id="20260925140000-4" author="hms">
+        <comment>
+            One patient in a bed at a time — expressed as a partial index so that the same bed can
+            be reused by the next admission, and so that the bed a discharged patient occupied
+            stays recorded on their admission rather than being cleared.
+
+            Note what is deliberately NOT here: "one open admission per patient". The patient is
+            reached through the visit (Admission has no patient column, so that the identity merge
+            has one fewer reference to carry), and a partial unique index cannot join. That
+            invariant is therefore enforced in the admission service instead — recorded in
+            phase2.md, slice 3, because it is a rule the database cannot hold for us.
+        </comment>
+        <sql>
+            CREATE UNIQUE INDEX ux_admission__occupied_bed
+                ON admission (bed_id)
+                WHERE bed_id IS NOT NULL AND status = 'ADMITTED';
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260925140000-5" author="hms">
+        <comment>
+            At most one ACTIVE payment plan per bill. A bill may accumulate plans over time — one
+            that defaulted and was renegotiated — so the constraint is partial rather than unique on
+            bill_id. Two plans that are both "the agreement we are working to" would make the
+            discharge gate ambiguous.
+        </comment>
+        <sql>
+            CREATE UNIQUE INDEX ux_payment_plan__active_bill
+                ON payment_plan (bill_id)
+                WHERE status = 'ACTIVE';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

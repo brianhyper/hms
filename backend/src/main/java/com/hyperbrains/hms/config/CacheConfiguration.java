@@ -68,6 +68,17 @@ public class CacheConfiguration {
             createCache(cm, com.hyperbrains.hms.domain.BillLineItem.class.getName());
             createCache(cm, com.hyperbrains.hms.domain.Payment.class.getName());
             createCache(cm, com.hyperbrains.hms.domain.AuditLog.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.BedType.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.Ward.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.Bed.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.WardCover.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.Admission.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.AdmissionTransfer.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.InpatientVitals.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.DoctorOrder.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.OrderExecution.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.AdHocCharge.class.getName());
+            createCache(cm, com.hyperbrains.hms.domain.PaymentPlan.class.getName());
             // jhipster-needle-ehcache-add-entry
         };
     }

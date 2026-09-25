@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity AdHocCharge.
+    -->
+    <changeSet id="20260925124311-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="admission_id"
+                                 baseTableName="ad_hoc_charge"
+                                 constraintName="fk_ad_hoc_charge__admission_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="admission"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="service_catalogue_id"
+                                 baseTableName="ad_hoc_charge"
+                                 constraintName="fk_ad_hoc_charge__service_catalogue_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="hospital_service"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="added_by_id"
+                                 baseTableName="ad_hoc_charge"
+                                 constraintName="fk_ad_hoc_charge__added_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="voided_by_id"
+                                 baseTableName="ad_hoc_charge"
+                                 constraintName="fk_ad_hoc_charge__voided_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

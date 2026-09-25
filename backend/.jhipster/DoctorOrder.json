@@ -1,0 +1,90 @@
+{
+  "annotations": {
+    "changelogDate": "20260925124309"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "orderedAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "type",
+      "fieldType": "DoctorOrderType",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "LAB,RADIOLOGY,DRUG,INSTRUCTION"
+    },
+    {
+      "fieldName": "recurrence",
+      "fieldType": "DoctorOrderRecurrence",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "ONE_OFF,RECURRING"
+    },
+    {
+      "documentation": "Free text such as \"q4h\" — deliberately not a scheduling DSL.",
+      "fieldName": "frequency",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "200"
+    },
+    {
+      "fieldName": "endDate",
+      "fieldType": "Instant"
+    },
+    {
+      "documentation": "What is to be done: the instruction itself, or the drug and dose.",
+      "fieldName": "details",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "DoctorOrderStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "ACTIVE,COMPLETED,CANCELLED"
+    },
+    {
+      "fieldName": "cancelledAt",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "cancelReason",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "DoctorOrder",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "admission",
+      "relationshipName": "admission",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "orderedBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "cancelledBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

@@ -1,0 +1,75 @@
+{
+  "annotations": {
+    "changelogDate": "20260925124308"
+  },
+  "applications": ["*"],
+  "documentation": "Inpatient observations. Separate from VitalSigns because that entity is unique\\nper visit — a correct shape for one triage moment and the wrong one for a\\npatient charted twice a day for a week.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "recordedAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "temperature",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "pulseRate",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "systolicBp",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "diastolicBp",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "oxygenSaturation",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "weight",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "height",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "bmi",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "notes",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "InpatientVitals",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "admission",
+      "relationshipName": "admission",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "recordedBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

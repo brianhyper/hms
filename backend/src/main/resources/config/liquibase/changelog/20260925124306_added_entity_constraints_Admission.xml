@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Admission.
+    -->
+    <changeSet id="20260925124306-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="visit_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__visit_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="visit"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="bed_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__bed_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bed"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="admitting_doctor_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__admitting_doctor_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="primary_doctor_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__primary_doctor_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="discharged_by_doctor_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__discharged_by_doctor_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="discharged_by_nurse_id"
+                                 baseTableName="admission"
+                                 constraintName="fk_admission__discharged_by_nurse_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

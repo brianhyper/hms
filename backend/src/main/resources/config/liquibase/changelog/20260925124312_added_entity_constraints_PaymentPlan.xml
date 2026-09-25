@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity PaymentPlan.
+    -->
+    <changeSet id="20260925124312-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="bill_id"
+                                 baseTableName="payment_plan"
+                                 constraintName="fk_payment_plan__bill_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bill"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="agreed_by_id"
+                                 baseTableName="payment_plan"
+                                 constraintName="fk_payment_plan__agreed_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

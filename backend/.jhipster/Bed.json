@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "changelogDate": "20260925124304"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "bedNumber",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "32"
+    },
+    {
+      "documentation": "Optional per-bed price for a premium room; otherwise the bed type's rate\\napplies. Read when the bed-day charge is raised, so a rate change is never\\nretrospective.",
+      "fieldName": "dailyRateOverride",
+      "fieldType": "BigDecimal",
+      "fieldValidateRules": ["min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "BedStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "AVAILABLE,OCCUPIED,CLEANING,MAINTENANCE"
+    }
+  ],
+  "name": "Bed",
+  "relationships": [
+    {
+      "otherEntityName": "ward",
+      "relationshipName": "ward",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "bedType",
+      "relationshipName": "bedType",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

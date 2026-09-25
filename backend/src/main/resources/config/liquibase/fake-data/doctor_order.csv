@@ -1,0 +1,11 @@
+id;ordered_at;type;recurrence;frequency;end_date;details;status;cancelled_at;cancel_reason;admission_id;ordered_by_id
+1;2026-09-25T11:01:16;RADIOLOGY;RECURRING;for geez almost;2026-09-25T12:03:03;empty;CANCELLED;2026-09-25T07:56:20;apud restfully what;1;1
+2;2026-09-25T02:07:40;LAB;ONE_OFF;exterior;2026-09-25T02:11:15;along;ACTIVE;2026-09-25T00:51:43;subexpression ornery abandoned;2;2
+3;2026-09-25T02:19:28;DRUG;ONE_OFF;wriggler aha;2026-09-25T04:15:38;justly furthermore through;ACTIVE;2026-09-25T04:07:49;uncover promptly through;3;2
+4;2026-09-24T19:52:18;RADIOLOGY;RECURRING;signature;2026-09-24T19:38:49;times;ACTIVE;2026-09-25T03:53:08;vanish;4;1
+5;2026-09-24T23:13:41;DRUG;RECURRING;pleasure whup;2026-09-25T11:49:51;where unto;COMPLETED;2026-09-25T03:54:51;pastel;5;1
+6;2026-09-25T08:18:51;DRUG;ONE_OFF;square slowly;2026-09-24T13:15:03;sour;ACTIVE;2026-09-25T06:29:20;altruistic;6;2
+7;2026-09-25T11:54:20;LAB;RECURRING;once without up;2026-09-25T07:39:02;around once;ACTIVE;2026-09-25T03:51:08;instantly scar;7;1
+8;2026-09-24T15:29:11;LAB;ONE_OFF;palatable specific creature;2026-09-24T19:17:57;unlike;COMPLETED;2026-09-25T02:45:43;unto;8;1
+9;2026-09-24T15:25:22;INSTRUCTION;ONE_OFF;roasted less with;2026-09-24T15:10:20;among;COMPLETED;2026-09-24T13:31:26;weakly faraway via;9;2
+10;2026-09-25T08:01:54;DRUG;ONE_OFF;before;2026-09-25T06:39:28;worth ouch ugh;CANCELLED;2026-09-24T16:11:08;almost swim happily;10;1

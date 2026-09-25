@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity DoctorOrder.
+    -->
+    <changeSet id="20260925124309-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="admission_id"
+                                 baseTableName="doctor_order"
+                                 constraintName="fk_doctor_order__admission_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="admission"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="ordered_by_id"
+                                 baseTableName="doctor_order"
+                                 constraintName="fk_doctor_order__ordered_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="cancelled_by_id"
+                                 baseTableName="doctor_order"
+                                 constraintName="fk_doctor_order__cancelled_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

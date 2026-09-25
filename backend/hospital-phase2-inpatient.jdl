@@ -1,0 +1,313 @@
+/**
+ * Hospital Management System — Phase 2 (Inpatient)
+ * Domain JDL — v1.0.0
+ *
+ * Companion to hospital-phase1-outpatient.jdl. Intended for the same existing JHipster
+ * Spring Boot + PostgreSQL application.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THIS FILE CONTAINS ONLY THE NEW ENTITIES. Do not add Phase 1 entities to it.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Phase 1's entities were generated once and then hand-tuned — Visit carries
+ * @Version and a hand-written javadoc, VisitStatus.ADMITTED carries the note
+ * explaining why an admitted visit is never moved to payment, and BillLineItem
+ * carries a source_ref column that is not in the Phase 1 JDL at all. Regenerating
+ * any of those files rewrites them from the template and silently discards that
+ * work. Generating only new entities means the generator never touches them.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * AN ADDITION TO THE MODEL, NOT A STANDALONE IMPORT
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The JDL parser requires every entity named in a relationship to be declared in
+ * the same document, so importing this file on its own fails with
+ * "Department is not declared". The workflow that actually works, verified on the
+ * Phase 2 model round:
+ *
+ *   jhipster export-jdl temp-phase1-model.jdl     # the 22 Phase 1 entities
+ *   # Concatenate from line 30 onwards: line 29 closes the application block, and
+ *   # keeping that block re-runs the app generator and rewrites pom.xml,
+ *   # application.yml and README.
+ *   jhipster jdl temp-combined.jdl --no-skip-server --skip-client --force
+ *   # then restore every tracked file the run reports as modified, except
+ *   # master.xml, CacheConfiguration.java and .yo-rc.json, and re-run the build
+ *   # and the full test suite.
+ *
+ * Three things about that which cost real time to learn:
+ *   - `--force` is required, and it is destructive. The generator regenerates all 33
+ *     entities, not only the new ones: without it the run stops on a conflict prompt
+ *     the first time it wants to rewrite a Phase 1 changelog, and neither answer is
+ *     right. With it, 104 tracked files were rewritten — including 11 released
+ *     changelogs whose checksums existing databases depend on — and were restored from
+ *     git afterwards. Nothing was lost only because the work was committed first.
+ *   - `jhipster entities <names>` looks like the safe alternative and is not: its
+ *     relationship resolution sees only the entities named in that run, so an FK to an
+ *     existing entity fails with "could not find the entity <target>" — alphabetically
+ *     first, so the message names whichever entity happens to sort first. `jhipster jdl`
+ *     resolves against the whole model, which is the only reason the combined file is
+ *     needed at all.
+ *   - Client generation is skipped deliberately. The frontend is built separately, and the
+ *     client i18n loader parses its translation JSON out of the mem-fs and fails on this
+ *     project; `--skip-client` avoids it and loses nothing this phase needs.
+ *
+ * Consequently every foreign key here is a unidirectional ManyToOne, including the
+ * ones that are genuinely one-to-one (Admission.visit, and one active plan per
+ * bill). Phase 1 took the same approach: Patient has no inverse collections even
+ * though four entities point at it. A unidirectional ManyToOne is written as a
+ * single column, and where the cardinality really is 1:1 the database enforces it
+ * through a unique index added in the accompanying changelog
+ * (20260925140000_added_phase2_inpatient.xml) rather than through a JPA annotation.
+ * The only thing this costs is that Hibernate does not know the relationship is
+ * one-to-one; nothing in the application asks it to.
+ *
+ * Also added by hand in that changelog rather than expressible here:
+ *   - @Version on Bed (bed assignment is the race: two nurses, one bed)
+ *   - unique indexes: bed(ward_id, bed_number); admission(visit_id); admission(bed_id)
+ *     where the admission is still ADMITTED, so a bed holds one patient at a time while
+ *     staying reusable; payment_plan(bill_id) where the plan is ACTIVE
+ *   - BillStatus.PAYMENT_PLAN_AGREED and the new BillLineSourceType values
+ *
+ * Deliberately NOT a database constraint: "one open admission per patient". The patient is
+ * reached through the visit — Admission has no patient column, so that the identity merge
+ * keeps one fewer reference to carry — and a partial unique index cannot join to visit. That
+ * rule therefore belongs to the admission service (phase2.md, slice 3).
+ *
+ * Deviations from phases/phase2.md, each deliberate:
+ *   - Admission.dischargedAt is an Instant, not the spec's "dischargeDate": it has
+ *     to be comparable with admittedAt to give a length of stay, and a field named
+ *     "date" holding a timestamp invites exactly the confusion it is meant to avoid.
+ *   - DoctorOrder.details holds the order text. The spec's table lists no payload
+ *     for an order, but an INSTRUCTION has to carry its instruction and a DRUG order
+ *     has to say which drug and dose; without it the row says nothing.
+ *   - DoctorOrder has no drug reference yet. Phase 2 §6 is explicit that a DRUG
+ *     order must not become a second prescribing path alongside Prescription, and
+ *     that decision belongs to the slice that builds orders. When it is made, the
+ *     link is one column and one changeset.
+ *   - No AdmissionOutcome field yet (death in hospital, discharge against medical
+ *     advice). Those are open client questions (phase2.md §11); adding an enum value
+ *     later is code-only, so nothing is gained by guessing now.
+ *   - Admission has no patient reference: the patient is reached through the visit,
+ *     which keeps the identity merge from having a third reference site to move.
+ *
+ * IMPORTANT: JDL generates persistence/API scaffolding only — no business logic.
+ */
+
+// -----------------------------------------------------------------------------
+// Global JHipster generation options — mirroring Phase 1
+// -----------------------------------------------------------------------------
+
+
+// The exported application model lists these options per entity rather than with a
+// wildcard, so the new entities have to be named explicitly.
+dto BedType, Ward, Bed, WardCover, Admission, AdmissionTransfer, InpatientVitals, DoctorOrder, OrderExecution, AdHocCharge, PaymentPlan with mapstruct
+service BedType, Ward, Bed, WardCover, Admission, AdmissionTransfer, InpatientVitals, DoctorOrder, OrderExecution, AdHocCharge, PaymentPlan with serviceImpl
+
+// Operational entities that grow without bound and need server-side pagination.
+paginate Admission, AdmissionTransfer, InpatientVitals, DoctorOrder, OrderExecution, AdHocCharge, PaymentPlan with pagination
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum BedStatus {
+  AVAILABLE,
+  OCCUPIED,
+  CLEANING,
+  MAINTENANCE
+}
+
+enum AdmissionStatus {
+  PENDING_BED,
+  ADMITTED,
+  DISCHARGED
+}
+
+enum DoctorOrderType {
+  LAB,
+  RADIOLOGY,
+  DRUG,
+  INSTRUCTION
+}
+
+enum DoctorOrderRecurrence {
+  ONE_OFF,
+  RECURRING
+}
+
+enum DoctorOrderStatus {
+  ACTIVE,
+  COMPLETED,
+  CANCELLED
+}
+
+enum PaymentPlanStatus {
+  ACTIVE,
+  COMPLETED,
+  DEFAULTED
+}
+
+// -----------------------------------------------------------------------------
+// Ward and bed reference data
+// -----------------------------------------------------------------------------
+
+/** Bed categories are per-hospital data, not a fixed enum: ICU exists in one
+ * hospital and not in the next. Super Admin managed, like Department. */
+entity BedType {
+  name String required unique maxlength(80),
+  defaultDailyRate BigDecimal required min(0),
+  active Boolean required
+}
+
+entity Ward {
+  name String required unique maxlength(120),
+  location String maxlength(120),
+  /** A ward that no longer takes patients is deactivated, never deleted: its beds
+   * and the admissions that used them have to survive in the history. */
+  active Boolean required
+}
+
+entity Bed {
+  bedNumber String required maxlength(32),
+  /** Optional per-bed price for a premium room; otherwise the bed type's rate
+   * applies. Read when the bed-day charge is raised, so a rate change is never
+   * retrospective. */
+  dailyRateOverride BigDecimal min(0),
+  status BedStatus required
+}
+
+/** Which doctor is responsible for which ward, for a period. Without this the
+ * "a doctor sees admissions on a ward they are covering" rule has no data to read. */
+entity WardCover {
+  coversFrom Instant required,
+  coversTo Instant,
+  note String maxlength(500)
+}
+
+// -----------------------------------------------------------------------------
+// The stay
+// -----------------------------------------------------------------------------
+
+entity Admission {
+  admittedAt Instant required,
+  admissionReason String required maxlength(10000),
+  status AdmissionStatus required,
+  dischargedAt Instant,
+  dischargeNote String maxlength(10000)
+}
+
+entity AdmissionTransfer {
+  transferredAt Instant required,
+  reason String required maxlength(10000)
+}
+
+/** Inpatient observations. Separate from VitalSigns because that entity is unique
+ * per visit — a correct shape for one triage moment and the wrong one for a
+ * patient charted twice a day for a week. */
+entity InpatientVitals {
+  recordedAt Instant required,
+  temperature BigDecimal,
+  pulseRate Integer,
+  systolicBp Integer,
+  diastolicBp Integer,
+  oxygenSaturation Integer,
+  weight BigDecimal,
+  height BigDecimal,
+  bmi BigDecimal,
+  notes String maxlength(10000)
+}
+
+// -----------------------------------------------------------------------------
+// Daily orders and their execution
+// -----------------------------------------------------------------------------
+
+entity DoctorOrder {
+  orderedAt Instant required,
+  type DoctorOrderType required,
+  recurrence DoctorOrderRecurrence required,
+  /** Free text such as "q4h" — deliberately not a scheduling DSL. */
+  frequency String maxlength(200),
+  endDate Instant,
+  /** What is to be done: the instruction itself, or the drug and dose. */
+  details String required maxlength(10000),
+  status DoctorOrderStatus required,
+  cancelledAt Instant,
+  cancelReason String maxlength(10000)
+}
+
+/** One dose or one action actually carried out. The nurse's record of what
+ * happened, never a schedule of what should. */
+entity OrderExecution {
+  executedAt Instant required,
+  notes String maxlength(10000)
+}
+
+// -----------------------------------------------------------------------------
+// Inpatient money
+// -----------------------------------------------------------------------------
+
+entity AdHocCharge {
+  description String required maxlength(500),
+  amount BigDecimal required min(0),
+  reason String required maxlength(10000),
+  addedAt Instant required,
+  voidedAt Instant,
+  voidReason String maxlength(10000)
+}
+
+entity PaymentPlan {
+  totalOwed BigDecimal required min(0),
+  agreedAt Instant required,
+  guarantorName String required maxlength(200),
+  guarantorRelationship String maxlength(100),
+  guarantorPhone String required maxlength(32),
+  notes String maxlength(10000),
+  status PaymentPlanStatus required
+}
+
+// -----------------------------------------------------------------------------
+// Relationships
+//
+// All unidirectional: the foreign key lives on the new entity and no Phase 1
+// entity gains a field, so none of them is rewritten. See the header.
+// -----------------------------------------------------------------------------
+
+relationship ManyToOne {
+  // Reference data
+  Ward{department required} to Department,
+  Bed{ward required} to Ward,
+  Bed{bedType required} to BedType,
+  WardCover{doctor(login) required} to User with builtInEntity,
+  WardCover{ward required} to Ward,
+  WardCover{assignedBy(login) required} to User with builtInEntity,
+
+  // Admission: one visit converts once (unique index in the changelog), and the
+  // bed is null while the patient is waiting for one.
+  Admission{visit required} to Visit,
+  Admission{bed} to Bed,
+  Admission{admittingDoctor(login) required} to User with builtInEntity,
+  Admission{primaryDoctor(login) required} to User with builtInEntity,
+  Admission{dischargedByDoctor(login)} to User with builtInEntity,
+  Admission{dischargedByNurse(login)} to User with builtInEntity,
+
+  AdmissionTransfer{admission required} to Admission,
+  AdmissionTransfer{fromBed} to Bed,
+  AdmissionTransfer{toBed required} to Bed,
+  AdmissionTransfer{transferredBy(login) required} to User with builtInEntity,
+
+  InpatientVitals{admission required} to Admission,
+  InpatientVitals{recordedBy(login) required} to User with builtInEntity,
+
+  DoctorOrder{admission required} to Admission,
+  DoctorOrder{orderedBy(login) required} to User with builtInEntity,
+  DoctorOrder{cancelledBy(login)} to User with builtInEntity,
+
+  OrderExecution{doctorOrder required} to DoctorOrder,
+  OrderExecution{executedBy(login) required} to User with builtInEntity,
+
+  AdHocCharge{admission required} to Admission,
+  AdHocCharge{serviceCatalogue} to HospitalService,
+  AdHocCharge{addedBy(login) required} to User with builtInEntity,
+  AdHocCharge{voidedBy(login)} to User with builtInEntity,
+
+  PaymentPlan{bill required} to Bill,
+  PaymentPlan{agreedBy(login) required} to User with builtInEntity
+}

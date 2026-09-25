@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "changelogDate": "20260925124310"
+  },
+  "applications": ["*"],
+  "documentation": "One dose or one action actually carried out. The nurse's record of what\\nhappened, never a schedule of what should.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "executedAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "notes",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "OrderExecution",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "doctorOrder",
+      "relationshipName": "doctorOrder",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "executedBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity AdmissionTransfer.
+    -->
+    <changeSet id="20260925124307-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="admission_id"
+                                 baseTableName="admission_transfer"
+                                 constraintName="fk_admission_transfer__admission_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="admission"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="from_bed_id"
+                                 baseTableName="admission_transfer"
+                                 constraintName="fk_admission_transfer__from_bed_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bed"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="to_bed_id"
+                                 baseTableName="admission_transfer"
+                                 constraintName="fk_admission_transfer__to_bed_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bed"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="transferred_by_id"
+                                 baseTableName="admission_transfer"
+                                 constraintName="fk_admission_transfer__transferred_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>
