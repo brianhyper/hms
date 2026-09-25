@@ -1,0 +1,64 @@
+######################
+# Workspace root
+#
+# The Spring Boot application keeps JHipster's comprehensive .gitignore inside backend/,
+# and git honours an ignore file in every directory it covers — so everything under
+# backend/ (its target/, node_modules/, logs, IDE files) is already handled there. This
+# file only has to deal with what sits beside it: the frontend, the editor workspace, and
+# the clutter an operating system leaves behind.
+######################
+
+######################
+# Frontend
+######################
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+######################
+# Editor workspace
+#
+# The four files below are committed on purpose: they carry the shared formatter, compiler
+# and launch settings, and leaving them out means every machine configures this project
+# differently. Everything else VS Code writes here is local state.
+######################
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+
+######################
+# Logs and temporary files
+######################
+*.log
+logs/
+*.tmp
+*.bak
+*.orig
+*~
+
+######################
+# Operating system
+######################
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+.Spotlight-V100
+.Trashes

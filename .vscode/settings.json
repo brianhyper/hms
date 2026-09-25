@@ -1,0 +1,12 @@
+{
+    "java.compile.nullAnalysis.mode": "disabled",
+    // Let Maven own target/. With autobuild on, the Java language server compiles into
+    // target/classes and target/test-classes itself, and when its in-memory model is stale it
+    // silently writes JDT error stubs there (a .class whose method bodies just throw
+    // "Unresolved compilation problem", with referenced types recorded unqualified). Those stubs
+    // then break Maven, and the failure reads as a missing class or a NoClassDefFoundError with no
+    // package name - which looks nothing like the cause.
+    // Diagnostics in the editor still work; only the background compile is off.
+    "java.autobuild.enabled": false,
+    "java.configuration.updateBuildConfiguration": "automatic"
+}
