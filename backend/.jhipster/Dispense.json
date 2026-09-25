@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091800"
+  },
+  "applications": ["*"],
+  "documentation": "A dispensing transaction. Multiple transactions allow partial dispensing.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "dispensedAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "note",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "Dispense",
+  "relationships": [
+    {
+      "otherEntityName": "prescription",
+      "relationshipName": "prescription",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "recordedBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

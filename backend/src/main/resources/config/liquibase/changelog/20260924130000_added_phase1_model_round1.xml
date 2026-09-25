@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 1 model round 1.
+
+        This is an INCREMENTAL changelog: it is included in master.xml after every
+        added_entity and added_entity_constraints changelog, so all referenced tables
+        already exist by the time it runs.
+
+        Note that adding a value to a Java enum needs NO migration here, because every
+        enum is mapped with @Enumerated(EnumType.STRING) into a plain varchar column.
+        VisitStatus.ADMITTED is therefore a code-only change.
+    -->
+
+    <changeSet id="20260924130000-1" author="hms">
+        <comment>
+            HospitalService.code: a stable business key so the system can look a catalogue entry
+            up by meaning instead of by display name. Needed because the consultation bill line
+            item has to be priced from "the general consultation" entry, and matching on
+            name/serviceType is fragile (someone renames the service and billing silently breaks).
+            Nullable so rows that predate this column keep working; unique when present.
+        </comment>
+        <addColumn tableName="hospital_service">
+            <column name="code" type="varchar(32)">
+                <constraints nullable="true" unique="true" uniqueConstraintName="ux_hospital_service__code"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260924130000-2" author="hms">
+        <comment>
+            BillLineItem.source_ref: links a charge back to the thing that generated it, formatted as
+            sourceType colon entityId, for example CONSULTATION:42 or LAB:17. Without this, incremental
+            charging is not idempotent (a retried "complete consultation" double-charges) and there is
+            no way to void one charge. The unique index is on (bill_id, source_ref) and is safe with
+            NULLs: Postgres treats NULLs as distinct, so any number of hand-entered lines can coexist.
+        </comment>
+        <addColumn tableName="bill_line_item">
+            <column name="source_ref" type="varchar(64)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <createIndex indexName="ux_bill_line_item__bill_source" tableName="bill_line_item" unique="true">
+            <column name="bill_id"/>
+            <column name="source_ref"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260924130000-3" author="hms">
+        <comment>
+            Optimistic locking (@Version) on the four entities whose state is mutated by
+            concurrent clinical events: two nurses prescribing the same drug (stock reservation),
+            a lab result landing while a prescription is dispensed (visit status recompute),
+            and a payment confirmation racing a bill total rewrite.
+        </comment>
+        <addColumn tableName="visit">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="bill">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="prescription">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="drug">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260924130000-4" author="hms">
+        <comment>
+            Lookup indexes.
+
+            audit_log: every correction lookup is "history for this entity", which is currently a
+            sequential scan.
+
+            patient.identity_document_number is indexed for the exact-match duplicate check but is
+            DELIBERATELY NOT UNIQUE. phase1.md requires that when an exact ID match is found,
+            Reception may still "confirm creating a new one anyway" — a unique constraint would
+            make that documented override impossible to perform.
+        </comment>
+        <createIndex indexName="ix_audit_log__entity" tableName="audit_log">
+            <column name="entity_name"/>
+            <column name="entity_id"/>
+        </createIndex>
+        <createIndex indexName="ix_patient__identity_document_number" tableName="patient">
+            <column name="identity_document_number"/>
+        </createIndex>
+        <createIndex indexName="ix_patient__full_name" tableName="patient">
+            <column name="full_name"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

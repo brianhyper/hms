@@ -1,0 +1,11 @@
+id;type;priority;reason_for_visit;status;queue_skip_reason;created_at;started_vitals_at;started_consultation_at;closed_at;patient_id
+1;OUTPATIENT;URGENT;../fake-data/blob/hipster.txt;WAITING_VITALS;../fake-data/blob/hipster.txt;2026-09-23T13:54:45;2026-09-23T20:52:07;2026-09-24T06:42:09;2026-09-24T07:14:45;1
+2;ADMISSION;NORMAL;../fake-data/blob/hipster.txt;WAITING_PAYMENT;../fake-data/blob/hipster.txt;2026-09-23T23:01:18;2026-09-23T23:38:51;2026-09-23T17:51:44;2026-09-23T20:27:09;2
+3;ADMISSION;NORMAL;../fake-data/blob/hipster.txt;CANCELLED;../fake-data/blob/hipster.txt;2026-09-23T20:43:50;2026-09-23T19:25:58;2026-09-24T08:01:16;2026-09-24T07:24:07;3
+4;ADMISSION;NORMAL;../fake-data/blob/hipster.txt;WAITING_PAYMENT;../fake-data/blob/hipster.txt;2026-09-23T23:13:49;2026-09-24T05:46:23;2026-09-24T07:42:01;2026-09-23T12:47:23;4
+5;EMERGENCY;EMERGENCY;../fake-data/blob/hipster.txt;WAITING_PAYMENT;../fake-data/blob/hipster.txt;2026-09-23T13:40:30;2026-09-24T01:31:15;2026-09-23T22:00:47;2026-09-24T00:56:06;5
+6;EMERGENCY;EMERGENCY;../fake-data/blob/hipster.txt;WAITING_RESULTS;../fake-data/blob/hipster.txt;2026-09-23T17:39:35;2026-09-23T19:01:55;2026-09-24T05:41:57;2026-09-23T10:54:25;6
+7;EMERGENCY;EMERGENCY;../fake-data/blob/hipster.txt;REGISTERED;../fake-data/blob/hipster.txt;2026-09-24T04:19:09;2026-09-24T02:51:55;2026-09-23T12:43:19;2026-09-24T08:53:04;7
+8;EMERGENCY;NORMAL;../fake-data/blob/hipster.txt;WAITING_PAYMENT;../fake-data/blob/hipster.txt;2026-09-23T18:18:09;2026-09-23T12:48:34;2026-09-23T13:11:36;2026-09-24T03:48:00;8
+9;ADMISSION;URGENT;../fake-data/blob/hipster.txt;REGISTERED;../fake-data/blob/hipster.txt;2026-09-24T05:53:47;2026-09-23T17:43:20;2026-09-23T13:46:07;2026-09-23T13:52:27;9
+10;PHARMACY_ONLY;NORMAL;../fake-data/blob/hipster.txt;CLOSED;../fake-data/blob/hipster.txt;2026-09-23T23:05:13;2026-09-24T06:56:58;2026-09-23T21:21:49;2026-09-23T13:05:27;10

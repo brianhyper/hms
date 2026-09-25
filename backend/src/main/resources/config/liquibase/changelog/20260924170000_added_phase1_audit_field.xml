@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+    <changeSet id="20260924170000-1" author="hyperbrains">
+        <comment>
+            Which field a correction changed.
+
+            A correction was previously recorded as one row carrying the old and new values of the whole
+            record, so answering "who changed this patient's phone number, and when" meant reading and
+            parsing every reason and value blob. One row per changed field makes that a query.
+
+            Nullable: rows written before this column existed describe a whole-record change (or an
+            operation that changed nothing, like a creation), and they remain valid as they are.
+        </comment>
+        <addColumn tableName="audit_log">
+            <column name="field_name" type="varchar(120)" remarks="The field a correction changed, one row per changed field.">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

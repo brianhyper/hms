@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        One development login per Phase 1 role.
+
+        WHY THIS EXISTS
+        Stock JHipster ships two accounts, admin (ROLE_ADMIN, ROLE_USER) and user (ROLE_USER).
+        Phase 1 added eight hospital roles, and every one of them is mapped to a different set of
+        endpoints in SecurityConfiguration's RBAC table. Without an account per role there is no way
+        to see what a Lab user actually reaches, or to demonstrate that Finance cannot read clinical
+        notes, without editing the database by hand first.
+
+        WHY NOT THE CSV FILES
+        config/liquibase/data/user.csv and user_authority.csv are loaded by changeset
+        00000000000001, which is already released and checksummed — editing those files makes
+        Liquibase fail validation on every database that has already run it. Same reason the Phase 1
+        authorities went into their own changelog instead of authority.csv.
+
+        WHY context="dev"
+        This seeds accounts whose password is publicly known. application-dev.yml runs the `dev`
+        context and application-prod.yml runs only `prod`, so these rows can never be created in a
+        production database. If that context ever changes, this file must be revisited — it is the
+        only thing standing between a known password and a real deployment.
+
+        WHO OWNS WHAT
+        The Java-side role constants are in com.hyperbrains.hms.security.AuthoritiesConstants and the
+        role-to-endpoint mapping is in com.hyperbrains.hms.config.SecurityConfiguration. This file
+        only creates the accounts; it does not grant any endpoint access of its own.
+
+        IDEMPOTENT
+        Both statements are keyed on the login, so re-running is a no-op and a fresh database and an
+        existing one converge on the same state. The id comes from sequence_generator rather than a
+        literal, so these rows can never collide with a user created through the application.
+    -->
+    <changeSet id="20260925120000-1" author="hms" context="dev">
+        <comment>Seed one development login per Phase 1 role (password: admin)</comment>
+        <sql>
+            INSERT INTO jhi_user (
+                id, login, password_hash, first_name, last_name, email,
+                activated, lang_key, created_by, created_date, last_modified_by, last_modified_date
+            )
+            SELECT
+                nextval('sequence_generator'), v.login, h.password_hash, v.first_name, v.last_name, v.email,
+                true, 'en', 'system', now(), 'system', now()
+            FROM (VALUES
+                ('reception',  'Reception',     'Desk',      'reception@localhost'),
+                ('nurse',      'Triage',        'Nurse',     'nurse@localhost'),
+                ('doctor',     'Attending',     'Doctor',    'doctor@localhost'),
+                ('lab',        'Laboratory',    'Technician','lab@localhost'),
+                ('radiology',  'Radiology',     'Technician','radiology@localhost'),
+                ('pharmacy',   'Pharmacy',      'Dispenser', 'pharmacy@localhost'),
+                ('finance',    'Finance',       'Cashier',   'finance@localhost'),
+                ('superadmin', 'Super',         'Admin',     'superadmin@localhost')
+            ) AS v(login, first_name, last_name, email)
+            CROSS JOIN (VALUES
+                -- The BCrypt hash of 'admin', copied from the stock admin row in user.csv. One hash for
+                -- every development account, so there is one password to remember. Development only.
+                ('$2a$10$gSAhZrxMllrbgj/kkK9UceBPpChGWJA7SYIb1Mqo.n5aNLq1/oRrC')
+            ) AS h(password_hash)
+            WHERE NOT EXISTS (SELECT 1 FROM jhi_user existing WHERE existing.login = v.login);
+
+            -- ROLE_USER alongside each hospital role, mirroring how the stock admin row carries
+            -- ROLE_ADMIN and ROLE_USER together. It grants nothing but /api/account, which the login
+            -- flow needs; every hospital endpoint is named explicitly in the RBAC table.
+            INSERT INTO jhi_user_authority (user_id, authority_name)
+            SELECT u.id, v.authority_name
+            FROM (VALUES
+                ('reception',  'ROLE_RECEPTION'),
+                ('reception',  'ROLE_USER'),
+                ('nurse',      'ROLE_NURSE'),
+                ('nurse',      'ROLE_USER'),
+                ('doctor',     'ROLE_DOCTOR'),
+                ('doctor',     'ROLE_USER'),
+                ('lab',        'ROLE_LAB'),
+                ('lab',        'ROLE_USER'),
+                ('radiology',  'ROLE_RADIOLOGY'),
+                ('radiology',  'ROLE_USER'),
+                ('pharmacy',   'ROLE_PHARMACY'),
+                ('pharmacy',   'ROLE_USER'),
+                ('finance',    'ROLE_FINANCE'),
+                ('finance',    'ROLE_USER'),
+                ('superadmin', 'ROLE_SUPER_ADMIN'),
+                ('superadmin', 'ROLE_USER')
+            ) AS v(login, authority_name)
+            INNER JOIN jhi_user u ON u.login = v.login
+            ON CONFLICT DO NOTHING;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

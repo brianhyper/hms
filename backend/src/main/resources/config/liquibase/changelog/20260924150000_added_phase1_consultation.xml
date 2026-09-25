@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 1: consultation completion and post-completion notes.
+    -->
+
+    <changeSet id="20260924150000-1" author="hms">
+        <comment>
+            Consultation addenda.
+
+            Needed because Visit.consultation is one-to-one, so a second Consultation row for the
+            same visit is impossible by construction — there is nowhere else to put a note that must
+            not overwrite the original. A consultation that has been completed cannot be edited at
+            all, so further clinical comment is appended here instead.
+
+            Not part of the JDL model: JDL generation would overwrite the hand-written service that
+            enforces the correction rule, and this entity only exists to serve it.
+        </comment>
+        <createTable tableName="consultation_addendum">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="consultation_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="author_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="body" type="varchar(10000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="consultation_id"
+                                 baseTableName="consultation_addendum"
+                                 constraintName="fk_consultation_addendum__consultation_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="consultation"/>
+        <addForeignKeyConstraint baseColumnNames="author_id"
+                                 baseTableName="consultation_addendum"
+                                 constraintName="fk_consultation_addendum__author_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"/>
+        <createIndex indexName="ix_consultation_addendum__consultation_id" tableName="consultation_addendum">
+            <column name="consultation_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260924150000-2" author="hms">
+        <comment>
+            Seed the general-consultation catalogue entry, so completing a consultation has a price
+            to charge out of the box.
+
+            The id is an explicit value in a reserved high band rather than a call to
+            sequence_generator. That sequence is shared with every entity and consumed by Hibernate's
+            own allocator, which hands out blocks of 50; taking a value from it here could collide
+            with a block Hibernate is already holding. An explicit id in a band no entity table will
+            reach is the same approach JHipster's own sample data takes.
+
+            PRICE IS ZERO ON PURPOSE. The consultation fee is a commercial decision, not something to
+            be invented in a migration. Zero means a dev consultation bills nothing until someone
+            sets the real fee — edit this catalogue row (or the seed) to the real amount. The
+            application treats a zero price as a legitimate configuration, so it will not complain.
+
+            Idempotent: the WHERE NOT EXISTS means re-running against a database that already has a
+            CONSULTATION entry leaves it alone, including any price that was set in the meantime.
+        </comment>
+        <sql>
+            INSERT INTO hospital_service (id, name, service_type, price, active, code)
+            SELECT 999001, 'General Consultation', 'CONSULTATION', 0, true, 'CONSULTATION'
+            WHERE NOT EXISTS (SELECT 1 FROM hospital_service WHERE code = 'CONSULTATION');
+        </sql>
+    </changeSet>
+</databaseChangeLog>

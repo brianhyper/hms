@@ -1,0 +1,7 @@
+export enum RegistrationStatus {
+  COMPLETE = 'COMPLETE',
+
+  INCOMPLETE_REGISTRATION = 'INCOMPLETE_REGISTRATION',
+
+  MERGED = 'MERGED',
+}

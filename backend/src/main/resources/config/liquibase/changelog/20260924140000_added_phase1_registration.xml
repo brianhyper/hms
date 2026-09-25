@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 1: registration support.
+    -->
+
+    <changeSet id="20260924140000-1" author="hms">
+        <comment>
+            Sequence backing hospital identifiers (HMS-YYYY-NNNN and UNK-YYYY-NNNN).
+
+            Deliberately NOT the entity sequence_generator: that one has incrementBy 50 for
+            HiLo-style allocation, so identifiers shown to patients and printed on records would
+            visibly jump (1050, 1100, 1150...). A separate dense series is both tidier and safer.
+
+            A sequence rather than max(hospital_id)+1 because hospital_id is a unique column and
+            two concurrent registrations would otherwise be handed the same value, failing the
+            second save with a constraint violation.
+        </comment>
+        <createSequence sequenceName="hms_hospital_id_seq" startValue="1" incrementBy="1"/>
+    </changeSet>
+
+    <changeSet id="20260924140000-2" author="hms">
+        <comment>
+            Functional index matching the normalisation in
+            PatientRepository.findByIdentityDocumentNormalized. Without it, the exact
+            identity-document duplicate check is a sequential scan on the patient table.
+            Partial, because nulls never need matching.
+        </comment>
+        <sql>
+            CREATE INDEX ix_patient__identity_document_normalized
+                ON patient (upper(regexp_replace(identity_document_number, '[^A-Za-z0-9]', '', 'g')))
+                WHERE identity_document_number IS NOT NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

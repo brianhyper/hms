@@ -1,0 +1,11 @@
+export enum NextOfKinRelationship {
+  PARENT = 'PARENT',
+
+  LEGAL_GUARDIAN = 'LEGAL_GUARDIAN',
+
+  SIBLING = 'SIBLING',
+
+  OTHER_RELATIVE = 'OTHER_RELATIVE',
+
+  OTHER = 'OTHER',
+}

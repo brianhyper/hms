@@ -1,0 +1,11 @@
+id;type;destination;destination_email;reason;notes;status;created_at;visit_id;referred_by_id
+1;EXTERNAL;in indeed;ew;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;PENDING;2026-09-23T09:44:39;1;1
+2;INTERNAL;indeed whoa override;urgently;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-24T07:21:32;2;2
+3;INTERNAL;yowza;legislature phooey;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-24T08:55:16;3;2
+4;INTERNAL;wavy bossy;fooey;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-23T16:18:29;4;1
+5;INTERNAL;gosh;yippee cheetah reprove;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-23T17:02:23;5;2
+6;EXTERNAL;annually;boohoo flight helpfully;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;PENDING;2026-09-23T12:49:58;6;1
+7;INTERNAL;zowie circular publication;greedily;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-23T17:55:07;7;1
+8;INTERNAL;successfully gadzooks by;duh tender gifted;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;PENDING;2026-09-23T16:30:41;8;1
+9;EXTERNAL;upbeat;rubric rosemary going;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;COMPLETED;2026-09-24T09:17:52;9;2
+10;INTERNAL;indeed celebrated;that duh advertisement;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt;PENDING;2026-09-24T09:01:42;10;2

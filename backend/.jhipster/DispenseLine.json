@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091801"
+  },
+  "applications": ["*"],
+  "documentation": "Actual item dispensed. The drug may differ from PrescriptionLine.drug when\\nan authorized substitution occurs.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "quantity",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "1"
+    },
+    {
+      "fieldName": "substitutionReason",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "DispenseLine",
+  "relationships": [
+    {
+      "otherEntityName": "dispense",
+      "relationshipName": "dispense",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "prescriptionLine",
+      "relationshipName": "prescriptionLine",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "drug",
+      "relationshipName": "drug",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

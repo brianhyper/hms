@@ -1,0 +1,78 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091748"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "temperature",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "pulseRate",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "systolicBp",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "diastolicBp",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "oxygenSaturation",
+      "fieldType": "Integer"
+    },
+    {
+      "fieldName": "weight",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "height",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "bmi",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "nutritionalStatus",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "100"
+    },
+    {
+      "fieldName": "pregnancyScreening",
+      "fieldType": "Boolean"
+    },
+    {
+      "fieldName": "triageNotes",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    },
+    {
+      "fieldName": "otherMeasurements",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    }
+  ],
+  "name": "VitalSigns",
+  "relationships": [
+    {
+      "otherEntityName": "visit",
+      "otherEntityRelationshipName": "vitals",
+      "relationshipName": "visit",
+      "relationshipSide": "right",
+      "relationshipType": "one-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

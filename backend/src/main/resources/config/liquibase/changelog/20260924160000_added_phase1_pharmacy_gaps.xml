@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <changeSet id="20260924160000-1" author="hyperbrains">
+        <comment>
+            When a prescription was written.
+
+            The medication entity carried no timestamp at all, so the pharmacy's dispensing queue
+            could order work but could not say how long a patient had been waiting. Added nullable,
+            backfilled from now() for any rows that predate it, then made required - so this is safe
+            to apply to a database that already holds prescriptions.
+
+            This changeset is also where PrescriptionStatus.CANCELLED became reachable. That value
+            needs no schema change of its own: the status column is a plain varchar with no check
+            constraint, so there is nothing for Liquibase to alter.
+        </comment>
+        <addColumn tableName="prescription">
+            <column name="created_at" type="timestamp" remarks="When the prescription was written.">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <update tableName="prescription">
+            <column name="created_at" valueComputed="now()"/>
+            <where>created_at is null</where>
+        </update>
+        <addNotNullConstraint tableName="prescription" columnName="created_at" columnDataType="timestamp"/>
+    </changeSet>
+</databaseChangeLog>

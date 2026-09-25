@@ -1,0 +1,99 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091747"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "type",
+      "fieldType": "VisitType",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "OUTPATIENT,EMERGENCY,PHARMACY_ONLY,ADMISSION"
+    },
+    {
+      "fieldName": "priority",
+      "fieldType": "VisitPriority",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "NORMAL,URGENT,EMERGENCY"
+    },
+    {
+      "fieldName": "reasonForVisit",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength", "required"],
+      "fieldValidateRulesMaxlength": "10000"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "VisitStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "REGISTERED,WAITING_VITALS,IN_VITALS,WAITING_DOCTOR,IN_CONSULTATION,WAITING_RESULTS,WAITING_PAYMENT,CLOSED,CANCELLED"
+    },
+    {
+      "fieldName": "queueSkipReason",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "10000"
+    },
+    {
+      "fieldName": "createdAt",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "startedVitalsAt",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "startedConsultationAt",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "closedAt",
+      "fieldType": "Instant"
+    }
+  ],
+  "name": "Visit",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "vitalSigns",
+      "otherEntityRelationshipName": "visit",
+      "relationshipName": "vitals",
+      "relationshipSide": "left",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "consultation",
+      "otherEntityRelationshipName": "visit",
+      "relationshipName": "consultation",
+      "relationshipSide": "left",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "bill",
+      "otherEntityRelationshipName": "visit",
+      "relationshipName": "bill",
+      "relationshipSide": "left",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "patient",
+      "relationshipName": "patient",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "appointment",
+      "otherEntityRelationshipName": "visit",
+      "relationshipName": "appointment",
+      "relationshipSide": "right",
+      "relationshipType": "one-to-one"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

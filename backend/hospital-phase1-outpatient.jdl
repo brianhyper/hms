@@ -1,0 +1,502 @@
+/**
+ * Hospital Management System — Phase 1 (Outpatient)
+ * Domain JDL — v1.0.0
+ *
+ * Intended for an existing JHipster Spring Boot + PostgreSQL application.
+ * Client generation is disabled because the frontend is being built separately.
+ *
+ * Important:
+ * - JDL generates the persistence/API scaffolding only.
+ * - Business workflows, cross-field validation, RBAC rules, audit writing,
+ *   billing calculation, stock reservation/dispensing, merge logic, PDF/email,
+ *   and automatic status progression must be implemented in services/custom code.
+ */
+
+// -----------------------------------------------------------------------------
+// Global JHipster generation options
+// -----------------------------------------------------------------------------
+
+
+dto * with mapstruct
+service * with serviceImpl
+
+// Operational entities that are likely to need server-side pagination.
+paginate Patient, Appointment, Visit, DiagnosticOrder, Prescription, Drug, Bill, Payment, AuditLog with pagination
+
+// AuditLog is an internal read-only record. The frontend is custom in any case.
+readOnly AuditLog
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum Sex {
+  MALE,
+  FEMALE,
+  OTHER,
+  UNKNOWN
+}
+
+enum IdentityDocumentType {
+  NATIONAL_ID,
+  PASSPORT,
+  BIRTH_CERTIFICATE
+}
+
+enum NextOfKinRelationship {
+  PARENT,
+  LEGAL_GUARDIAN,
+  SIBLING,
+  OTHER_RELATIVE,
+  OTHER
+}
+
+enum RegistrationStatus {
+  COMPLETE,
+  INCOMPLETE_REGISTRATION,
+  MERGED
+}
+
+enum AppointmentStatus {
+  SCHEDULED,
+  CHECKED_IN,
+  COMPLETED,
+  CANCELLED,
+  NO_SHOW
+}
+
+enum VisitType {
+  OUTPATIENT,
+  EMERGENCY,
+  PHARMACY_ONLY,
+  ADMISSION
+}
+
+enum VisitPriority {
+  NORMAL,
+  URGENT,
+  EMERGENCY
+}
+
+enum VisitStatus {
+  REGISTERED,
+  WAITING_VITALS,
+  IN_VITALS,
+  WAITING_DOCTOR,
+  IN_CONSULTATION,
+  WAITING_RESULTS,
+  WAITING_PAYMENT,
+  CLOSED,
+  CANCELLED
+}
+
+enum ConsultationStatus {
+  IN_PROGRESS,
+  COMPLETED
+}
+
+enum OrderType {
+  LAB,
+  RADIOLOGY
+}
+
+enum OrderStatus {
+  PENDING,
+  IN_PROGRESS,
+  COMPLETED,
+  CANCELLED
+}
+
+enum ReferralType {
+  INTERNAL,
+  EXTERNAL
+}
+
+enum ReferralStatus {
+  PENDING,
+  COMPLETED
+}
+
+enum PrescriptionSource {
+  INTERNAL,
+  EXTERNAL
+}
+
+enum PrescriptionStatus {
+  PENDING,
+  READY_FOR_DISPENSE,
+  PARTIALLY_DISPENSED,
+  DISPENSED,
+  PENDING_PAYMENT,
+  PAID
+}
+
+enum DrugClassification {
+  OTC,
+  POM,
+  CONTROLLED
+}
+
+enum BillStatus {
+  UNPAID,
+  PAID
+}
+
+enum BillLineSourceType {
+  CONSULTATION,
+  LAB,
+  RADIOLOGY,
+  PHARMACY
+}
+
+enum PaymentMethod {
+  CASH,
+  MPESA,
+  INSURANCE
+}
+
+enum PaymentConfirmationStatus {
+  PENDING,
+  CONFIRMED,
+  REJECTED
+}
+
+// -----------------------------------------------------------------------------
+// Core patient domain
+// -----------------------------------------------------------------------------
+
+entity Patient {
+  /** Permanent business identifier. For unidentified records this temporarily
+   * contains the generated UNK-YYYY-#### identifier. */
+  hospitalId String required unique maxlength(32),
+  fullName String required maxlength(200),
+  dateOfBirth LocalDate,
+  estimatedAge Integer min(0) max(150),
+  sex Sex required,
+  sexEstimated Boolean required,
+  phone String maxlength(32),
+  email String maxlength(254),
+  identityDocumentType IdentityDocumentType,
+  identityDocumentNumber String maxlength(64),
+  occupation String maxlength(120),
+  maritalStatus String maxlength(50),
+  nextOfKinName String maxlength(200),
+  nextOfKinPhone String maxlength(32),
+  nextOfKinRelationship NextOfKinRelationship,
+  knownAllergies String maxlength(10000),
+  knownConditions String maxlength(10000),
+  villageEstate String maxlength(200),
+  registrationStatus RegistrationStatus required
+}
+
+entity Department {
+  name String required unique maxlength(120),
+  code String required unique maxlength(32),
+  active Boolean required
+}
+
+// -----------------------------------------------------------------------------
+// Reception / visit
+// -----------------------------------------------------------------------------
+
+entity Appointment {
+  scheduledDate LocalDate required,
+  scheduledTime LocalTime required,
+  reason String maxlength(10000),
+  status AppointmentStatus required
+}
+
+entity Visit {
+  type VisitType required,
+  priority VisitPriority required,
+  reasonForVisit String maxlength(10000) required,
+  status VisitStatus required,
+  queueSkipReason String maxlength(10000),
+  createdAt Instant required,
+  startedVitalsAt Instant,
+  startedConsultationAt Instant,
+  closedAt Instant
+}
+
+// -----------------------------------------------------------------------------
+// Nursing / triage
+// -----------------------------------------------------------------------------
+
+entity VitalSigns {
+  temperature BigDecimal,
+  pulseRate Integer,
+  systolicBp Integer,
+  diastolicBp Integer,
+  oxygenSaturation Integer,
+  weight BigDecimal,
+  height BigDecimal,
+  bmi BigDecimal,
+  nutritionalStatus String maxlength(100),
+  pregnancyScreening Boolean,
+  triageNotes String maxlength(10000),
+  otherMeasurements String maxlength(10000)
+}
+
+// -----------------------------------------------------------------------------
+// Consultation / diagnosis
+// -----------------------------------------------------------------------------
+
+entity Consultation {
+  presentingComplaint String maxlength(10000),
+  examinationFindings String maxlength(10000),
+  diagnosisOther String maxlength(10000),
+  observations String maxlength(10000),
+  followUpInstructions String maxlength(10000),
+  status ConsultationStatus required,
+  startedAt Instant required,
+  completedAt Instant
+}
+
+entity Diagnosis {
+  code String required unique maxlength(64),
+  name String required maxlength(200),
+  active Boolean required
+}
+
+entity HospitalService {
+  name String required maxlength(160),
+  serviceType String maxlength(80),
+  price BigDecimal required min(0),
+  active Boolean required
+}
+
+// -----------------------------------------------------------------------------
+// Laboratory / radiology
+// -----------------------------------------------------------------------------
+
+entity LabTest {
+  name String required maxlength(160),
+  price BigDecimal required min(0),
+  specimenType String maxlength(100),
+  turnaroundTimeMinutes Integer min(0),
+  active Boolean required
+}
+
+entity RadiologyExam {
+  name String required maxlength(160),
+  price BigDecimal required min(0),
+  active Boolean required
+}
+
+entity DiagnosticOrder {
+  type OrderType required,
+  testName String required maxlength(200),
+  status OrderStatus required,
+  notes String maxlength(10000),
+  orderedAt Instant required
+}
+
+entity Result {
+  resultValue String maxlength(10000) required,
+  notes String maxlength(10000),
+  enteredAt Instant required,
+  imageReference String maxlength(2000)
+}
+
+// -----------------------------------------------------------------------------
+// Referrals
+// -----------------------------------------------------------------------------
+
+entity Referral {
+  type ReferralType required,
+  destination String required maxlength(255),
+  destinationEmail String maxlength(254),
+  reason String maxlength(10000) required,
+  notes String maxlength(10000),
+  status ReferralStatus required,
+  createdAt Instant required
+}
+
+// -----------------------------------------------------------------------------
+// Pharmacy
+// -----------------------------------------------------------------------------
+
+entity Prescription {
+  source PrescriptionSource required,
+  prescribingSource String maxlength(255),
+  status PrescriptionStatus required
+}
+
+entity PrescriptionLine {
+  dosage String required maxlength(200),
+  duration String required maxlength(100),
+  quantity Integer required min(1)
+}
+
+entity Drug {
+  name String required maxlength(200),
+  unit String required maxlength(80),
+  currentStock Integer required min(0),
+  reservedStock Integer required min(0),
+  lowStockThreshold Integer required min(0),
+  price BigDecimal required min(0),
+  classification DrugClassification,
+  active Boolean required
+}
+
+/** A dispensing transaction. Multiple transactions allow partial dispensing. */
+entity Dispense {
+  dispensedAt Instant required,
+  note String maxlength(10000)
+}
+
+/** Actual item dispensed. The drug may differ from PrescriptionLine.drug when
+ * an authorized substitution occurs. */
+entity DispenseLine {
+  quantity Integer required min(1),
+  substitutionReason String maxlength(10000)
+}
+
+// -----------------------------------------------------------------------------
+// Finance
+// -----------------------------------------------------------------------------
+
+entity Bill {
+  totalAmount BigDecimal required min(0),
+  status BillStatus required,
+  paidAt Instant
+}
+
+entity BillLineItem {
+  description String required maxlength(255),
+  amount BigDecimal required min(0),
+  sourceType BillLineSourceType required
+}
+
+entity Payment {
+  method PaymentMethod required,
+  mpesaReference String maxlength(100),
+  insurerName String maxlength(200),
+  confirmationStatus PaymentConfirmationStatus required,
+  receiptNumber String required unique maxlength(64),
+  amount BigDecimal required min(0),
+  recordedAt Instant required
+}
+
+// -----------------------------------------------------------------------------
+// Minimal cross-cutting audit trail
+// -----------------------------------------------------------------------------
+
+entity AuditLog {
+  action String required maxlength(80),
+  entityName String required maxlength(120),
+  entityId String required maxlength(100),
+  reason String maxlength(10000),
+  oldValue String maxlength(10000),
+  newValue String maxlength(10000),
+  details String maxlength(10000),
+  performedAt Instant required
+}
+
+// -----------------------------------------------------------------------------
+// Relationships
+// -----------------------------------------------------------------------------
+
+// Patient identity / merge
+relationship ManyToOne {
+  Patient{mergedIntoPatient} to Patient
+}
+
+// Appointments
+relationship ManyToOne {
+  Appointment{patient required} to Patient,
+  Appointment{department required} to Department,
+  Appointment{doctor(login)} to User with builtInEntity
+}
+
+relationship OneToOne {
+  Appointment{visit} to Visit{appointment}
+}
+
+// Visit / queue
+relationship ManyToOne {
+  Visit{patient required} to Patient
+}
+
+// One outpatient visit has one triage record in Phase 1.
+relationship OneToOne {
+  Visit{vitals} to VitalSigns{visit required},
+  Visit{consultation} to Consultation{visit required},
+  Visit{bill} to Bill{visit required}
+}
+
+// A visit may originate from an appointment; walk-ins simply have no appointment.
+// An appointment may exist without a visit until explicit Reception check-in.
+
+// Consultation / diagnosis / doctor
+relationship ManyToOne {
+  Consultation{doctor(login) required} to User with builtInEntity
+}
+
+relationship ManyToMany {
+  Consultation{diagnoses} to Diagnosis{consultations}
+}
+
+// Diagnostic orders
+relationship ManyToOne {
+  DiagnosticOrder{visit required} to Visit,
+  DiagnosticOrder{orderedBy(login) required} to User with builtInEntity,
+  DiagnosticOrder{labTest} to LabTest,
+  DiagnosticOrder{radiologyExam} to RadiologyExam
+}
+
+relationship OneToOne {
+  DiagnosticOrder{result} to Result{order required}
+}
+
+relationship ManyToOne {
+  Result{enteredBy(login) required} to User with builtInEntity
+}
+
+// Referrals
+relationship ManyToOne {
+  Referral{visit required} to Visit,
+  Referral{referredBy(login) required} to User with builtInEntity,
+  Referral{department} to Department
+}
+
+// Prescriptions
+relationship ManyToOne {
+  Prescription{visit} to Visit,
+  Prescription{doctor(login)} to User with builtInEntity
+}
+
+relationship ManyToOne {
+  PrescriptionLine{prescription required} to Prescription,
+  PrescriptionLine{drug required} to Drug
+}
+
+// Dispensing / partial fulfillment / substitution
+relationship ManyToOne {
+  Dispense{prescription required} to Prescription,
+  Dispense{recordedBy(login) required} to User with builtInEntity
+}
+
+relationship ManyToOne {
+  DispenseLine{dispense required} to Dispense,
+  DispenseLine{prescriptionLine required} to PrescriptionLine,
+  DispenseLine{drug required} to Drug
+}
+
+// Billing
+relationship ManyToOne {
+  BillLineItem{bill required} to Bill
+}
+
+relationship OneToOne {
+  Bill{payment} to Payment{bill required}
+}
+
+relationship ManyToOne {
+  Payment{recordedBy(login) required} to User with builtInEntity
+}
+
+// Audit
+relationship ManyToOne {
+  AuditLog{actor(login)} to User with builtInEntity
+}

@@ -1,0 +1,9 @@
+export enum VisitType {
+  OUTPATIENT = 'OUTPATIENT',
+
+  EMERGENCY = 'EMERGENCY',
+
+  PHARMACY_ONLY = 'PHARMACY_ONLY',
+
+  ADMISSION = 'ADMISSION',
+}

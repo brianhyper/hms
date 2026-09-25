@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        The general consultation fee.
+
+        The catalogue entry itself is created by 20260924150000_added_phase1_consultation.xml with a
+        price of ZERO and a comment saying the fee is a commercial decision rather than something to be
+        invented in a migration. That was correct while nobody had supplied a figure. The hospital has
+        now given one — KES 1000 — so it is recorded here, in a new changelog rather than by editing
+        that one, which is already released and checksummed.
+
+        THREE THINGS WORTH BEING CLEAR ABOUT
+
+        1. This never overwrites a fee that has been set. The UPDATE is guarded on price = 0, so a
+           hospital that has already priced its own consultation — through the catalogue screen, or
+           /api/hospital-services — keeps that price, and re-running against such a database does
+           nothing at all.
+
+        2. This does not freeze the price. The catalogue row remains the single source of truth and an
+           administrator may change it at any time; this only fills in the blank that was left.
+
+        3. This is the difference between the real payment path and a placeholder. While the fee was
+           zero, every ordinary visit's total came to zero and settled through the "nothing owed" case,
+           which deliberately writes no Payment row. From here a normal outpatient visit owes money and
+           the cashier flow is exercised for real.
+
+        The INSERT is repeated here as well, so a database where the seed row had somehow been removed
+        gets the fee along with it rather than being left with a consultation that cannot be priced.
+
+        Idempotent: both statements are guarded, so re-running is a no-op on a database that already has
+        a CONSULTATION entry with a non-zero price.
+    -->
+    <changeSet id="20260925130000-1" author="hms">
+        <comment>Set the general consultation fee to KES 1000 (only where it is still unset)</comment>
+        <sql>
+            INSERT INTO hospital_service (id, name, service_type, price, active, code)
+            SELECT 999001, 'General Consultation', 'CONSULTATION', 1000, true, 'CONSULTATION'
+            WHERE NOT EXISTS (SELECT 1 FROM hospital_service WHERE code = 'CONSULTATION');
+
+            UPDATE hospital_service SET price = 1000 WHERE code = 'CONSULTATION' AND price = 0;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

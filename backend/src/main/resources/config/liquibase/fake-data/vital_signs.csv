@@ -1,0 +1,11 @@
+id;temperature;pulse_rate;systolic_bp;diastolic_bp;oxygen_saturation;weight;height;bmi;nutritional_status;pregnancy_screening;triage_notes;other_measurements
+1;9835.5;9634;1908;7407;21672;32046.12;23395.31;18948.98;honored haul;false;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+2;4683.76;13913;11634;19222;2159;3887.54;27697.87;3386.15;how boo;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+3;19077.6;7497;27864;8160;32611;12913.44;17943.05;3757.89;pfft amidst;false;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+4;14804.71;19344;3127;1714;20939;30714.96;21696.41;27833.67;replacement scrabble;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+5;19018.78;9563;18650;24687;20836;23317.32;20801.51;9083.79;mmm;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+6;8243.04;11658;15778;23691;2765;14959.97;4211.53;19243.67;daily ravel;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+7;17874.51;13066;483;750;19316;15670.81;20472.62;2383.4;yippee husband;false;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+8;30715.42;26116;19291;29018;28365;24452.89;18561.69;16291.82;puritan;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+9;19517.73;27990;31965;2893;17907;3080.43;11507.93;21353.52;ah gadzooks;true;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt
+10;21472.04;9967;25684;15343;30930;11350.74;6939.88;911.73;sternly;false;../fake-data/blob/hipster.txt;../fake-data/blob/hipster.txt

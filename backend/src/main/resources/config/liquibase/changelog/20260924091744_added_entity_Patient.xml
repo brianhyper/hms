@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity Patient.
+    -->
+    <changeSet id="20260924091744-1" author="jhipster">
+        <createTable tableName="patient">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="hospital_id" type="varchar(32)" remarks="Permanent business identifier. For unidentified records this temporarily\ncontains the generated UNK-YYYY-#### identifier.">
+                <constraints nullable="false" unique="true" uniqueConstraintName="ux_patient__hospital_id" />
+            </column>
+            <column name="full_name" type="varchar(200)">
+                <constraints nullable="false" />
+            </column>
+            <column name="date_of_birth" type="date">
+                <constraints nullable="true" />
+            </column>
+            <column name="estimated_age" type="integer">
+                <constraints nullable="true" />
+            </column>
+            <column name="sex" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="sex_estimated" type="boolean">
+                <constraints nullable="false" />
+            </column>
+            <column name="phone" type="varchar(32)">
+                <constraints nullable="true" />
+            </column>
+            <column name="email" type="varchar(254)">
+                <constraints nullable="true" />
+            </column>
+            <column name="identity_document_type" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="identity_document_number" type="varchar(64)">
+                <constraints nullable="true" />
+            </column>
+            <column name="occupation" type="varchar(120)">
+                <constraints nullable="true" />
+            </column>
+            <column name="marital_status" type="varchar(50)">
+                <constraints nullable="true" />
+            </column>
+            <column name="next_of_kin_name" type="varchar(200)">
+                <constraints nullable="true" />
+            </column>
+            <column name="next_of_kin_phone" type="varchar(32)">
+                <constraints nullable="true" />
+            </column>
+            <column name="next_of_kin_relationship" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="known_allergies" type="${clobType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="known_conditions" type="${clobType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="village_estate" type="varchar(200)">
+                <constraints nullable="true" />
+            </column>
+            <column name="registration_status" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="merged_into_patient_id" type="bigint">
+                <constraints nullable="true" />
+            </column>
+            <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
+        </createTable>
+    </changeSet>
+
+    <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
+
+    <!--
+        Load sample data generated with Faker.js
+        - This data can be easily edited using a CSV editor (or even MS Excel) and
+          is located in the 'src/main/resources/config/liquibase/fake-data' directory
+        - By default this data is applied when running with the JHipster 'dev' profile.
+          This can be customized by adding or removing 'faker' in the 'spring.liquibase.contexts'
+          Spring Boot configuration key.
+    -->
+    <changeSet id="20260924091744-1-data" author="jhipster" context="faker">
+        <loadData
+                  file="../fake-data/patient.csv"
+                  relativeToChangelogFile="true"
+                  separator=";"
+                  tableName="patient"
+                  usePreparedStatements="true">
+            <column name="id" type="numeric"/>
+            <column name="hospital_id" type="string"/>
+            <column name="full_name" type="string"/>
+            <column name="date_of_birth" type="date"/>
+            <column name="estimated_age" type="numeric"/>
+            <column name="sex" type="string"/>
+            <column name="sex_estimated" type="boolean"/>
+            <column name="phone" type="string"/>
+            <column name="email" type="string"/>
+            <column name="identity_document_type" type="string"/>
+            <column name="identity_document_number" type="string"/>
+            <column name="occupation" type="string"/>
+            <column name="marital_status" type="string"/>
+            <column name="next_of_kin_name" type="string"/>
+            <column name="next_of_kin_phone" type="string"/>
+            <column name="next_of_kin_relationship" type="string"/>
+            <column name="known_allergies" type="clob"/>
+            <column name="known_conditions" type="clob"/>
+            <column name="village_estate" type="string"/>
+            <column name="registration_status" type="string"/>
+            <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
+        </loadData>
+    </changeSet>
+</databaseChangeLog>

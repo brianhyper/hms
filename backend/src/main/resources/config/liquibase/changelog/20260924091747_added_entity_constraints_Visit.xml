@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Visit.
+    -->
+    <changeSet id="20260924091747-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="vitals_id"
+                                 baseTableName="visit"
+                                 constraintName="fk_visit__vitals_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="vital_signs"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="consultation_id"
+                                 baseTableName="visit"
+                                 constraintName="fk_visit__consultation_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="consultation"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="bill_id"
+                                 baseTableName="visit"
+                                 constraintName="fk_visit__bill_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bill"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="patient_id"
+                                 baseTableName="visit"
+                                 constraintName="fk_visit__patient_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="patient"
+                                 />
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,11 @@
+id;type;test_name;status;notes;ordered_at;visit_id;ordered_by_id
+1;LAB;psst;CANCELLED;../fake-data/blob/hipster.txt;2026-09-23T23:52:41;1;1
+2;RADIOLOGY;sticky till wherever;PENDING;../fake-data/blob/hipster.txt;2026-09-24T08:10:53;2;2
+3;LAB;headline versus memorable;PENDING;../fake-data/blob/hipster.txt;2026-09-23T16:38:16;3;1
+4;RADIOLOGY;outsource whether palate;CANCELLED;../fake-data/blob/hipster.txt;2026-09-23T16:33:22;4;2
+5;LAB;forgo sometimes meh;COMPLETED;../fake-data/blob/hipster.txt;2026-09-23T23:09:24;5;1
+6;RADIOLOGY;topsail;CANCELLED;../fake-data/blob/hipster.txt;2026-09-24T04:25:31;6;2
+7;RADIOLOGY;as uh-huh when;COMPLETED;../fake-data/blob/hipster.txt;2026-09-23T11:26:58;7;1
+8;RADIOLOGY;till blissfully filter;CANCELLED;../fake-data/blob/hipster.txt;2026-09-23T16:01:10;8;1
+9;LAB;absent;PENDING;../fake-data/blob/hipster.txt;2026-09-23T21:23:29;9;2
+10;LAB;testify when reboot;IN_PROGRESS;../fake-data/blob/hipster.txt;2026-09-23T16:48:40;10;1

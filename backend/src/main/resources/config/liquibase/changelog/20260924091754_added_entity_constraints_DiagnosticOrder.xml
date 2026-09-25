@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity DiagnosticOrder.
+    -->
+    <changeSet id="20260924091754-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="result_id"
+                                 baseTableName="diagnostic_order"
+                                 constraintName="fk_diagnostic_order__result_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="result"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="visit_id"
+                                 baseTableName="diagnostic_order"
+                                 constraintName="fk_diagnostic_order__visit_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="visit"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="ordered_by_id"
+                                 baseTableName="diagnostic_order"
+                                 constraintName="fk_diagnostic_order__ordered_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="lab_test_id"
+                                 baseTableName="diagnostic_order"
+                                 constraintName="fk_diagnostic_order__lab_test_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="lab_test"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="radiology_exam_id"
+                                 baseTableName="diagnostic_order"
+                                 constraintName="fk_diagnostic_order__radiology_exam_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="radiology_exam"
+                                 />
+    </changeSet>
+</databaseChangeLog>

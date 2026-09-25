@@ -1,0 +1,11 @@
+id;quantity;substitution_reason;dispense_id;prescription_line_id;drug_id
+1;20136;../fake-data/blob/hipster.txt;1;1;1
+2;2711;../fake-data/blob/hipster.txt;2;2;2
+3;1020;../fake-data/blob/hipster.txt;3;3;3
+4;4358;../fake-data/blob/hipster.txt;4;4;4
+5;5196;../fake-data/blob/hipster.txt;5;5;5
+6;31582;../fake-data/blob/hipster.txt;6;6;6
+7;29276;../fake-data/blob/hipster.txt;7;7;7
+8;6339;../fake-data/blob/hipster.txt;8;8;8
+9;18776;../fake-data/blob/hipster.txt;9;9;9
+10;14918;../fake-data/blob/hipster.txt;10;10;10

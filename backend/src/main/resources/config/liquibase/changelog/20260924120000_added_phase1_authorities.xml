@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 1 hospital roles.
+
+        Stock JHipster seeds only ROLE_ADMIN and ROLE_USER (config/liquibase/data/authority.csv,
+        loaded by the initial schema changeset). The hospital roles are added here instead of by
+        editing that CSV, because the CSV is already released and its changeset is checksummed.
+
+        Idempotent: ON CONFLICT DO NOTHING means re-running against a database that already has
+        some of these rows is safe, and adding a role later is a one-line addition.
+
+        The Java-side counterpart is com.hyperbrains.hms.security.AuthoritiesConstants.
+        The role-to-endpoint mapping is in com.hyperbrains.hms.config.SecurityConfiguration.
+    -->
+    <changeSet id="20260924120000-1" author="hms">
+        <comment>Seed Phase 1 hospital authorities</comment>
+        <sql>
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_SUPER_ADMIN') ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_RECEPTION')   ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_NURSE')       ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_DOCTOR')      ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_LAB')         ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_RADIOLOGY')   ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_PHARMACY')    ON CONFLICT (name) DO NOTHING;
+            INSERT INTO jhi_authority (name) VALUES ('ROLE_FINANCE')     ON CONFLICT (name) DO NOTHING;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

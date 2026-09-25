@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity DispenseLine.
+    -->
+    <changeSet id="20260924091801-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="dispense_id"
+                                 baseTableName="dispense_line"
+                                 constraintName="fk_dispense_line__dispense_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="dispense"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="prescription_line_id"
+                                 baseTableName="dispense_line"
+                                 constraintName="fk_dispense_line__prescription_line_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="prescription_line"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="drug_id"
+                                 baseTableName="dispense_line"
+                                 constraintName="fk_dispense_line__drug_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="drug"
+                                 />
+    </changeSet>
+</databaseChangeLog>

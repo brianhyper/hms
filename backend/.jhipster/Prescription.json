@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091757"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "source",
+      "fieldType": "PrescriptionSource",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "INTERNAL,EXTERNAL"
+    },
+    {
+      "fieldName": "prescribingSource",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "PrescriptionStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "PENDING,READY_FOR_DISPENSE,PARTIALLY_DISPENSED,DISPENSED,PENDING_PAYMENT,PAID"
+    }
+  ],
+  "name": "Prescription",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "visit",
+      "relationshipName": "visit",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "doctor",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

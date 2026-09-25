@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "changelogDate": "20260924091802"
+  },
+  "applications": ["*"],
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "totalAmount",
+      "fieldType": "BigDecimal",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "BillStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "UNPAID,PAID"
+    },
+    {
+      "fieldName": "paidAt",
+      "fieldType": "Instant"
+    }
+  ],
+  "name": "Bill",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "payment",
+      "otherEntityRelationshipName": "bill",
+      "relationshipName": "payment",
+      "relationshipSide": "left",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "visit",
+      "otherEntityRelationshipName": "bill",
+      "relationshipName": "visit",
+      "relationshipSide": "right",
+      "relationshipType": "one-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl",
+  "skipClient": false,
+  "skipServer": false
+}

@@ -1,0 +1,11 @@
+id;description;amount;source_type;bill_id
+1;natural;15999.28;LAB;1
+2;indeed;29019.95;RADIOLOGY;2
+3;unhealthy apt;6542.67;LAB;3
+4;thoroughly;1538.28;RADIOLOGY;4
+5;hasty reorient short;5142.44;LAB;5
+6;sympathetically fuzzy;29589.23;RADIOLOGY;6
+7;dispense publicize;13732.86;CONSULTATION;7
+8;teriyaki elderly;1390.1;RADIOLOGY;8
+9;unrealistic pension;19182.47;CONSULTATION;9
+10;indeed zowie;209.79;CONSULTATION;10
