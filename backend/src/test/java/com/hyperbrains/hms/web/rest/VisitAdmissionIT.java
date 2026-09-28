@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hyperbrains.hms.IntegrationTest;
+import com.hyperbrains.hms.domain.Admission;
 import com.hyperbrains.hms.domain.AuditLog;
 import com.hyperbrains.hms.domain.Bill;
 import com.hyperbrains.hms.domain.Consultation;
@@ -12,6 +13,7 @@ import com.hyperbrains.hms.domain.LabTest;
 import com.hyperbrains.hms.domain.Patient;
 import com.hyperbrains.hms.domain.Prescription;
 import com.hyperbrains.hms.domain.Visit;
+import com.hyperbrains.hms.domain.enumeration.AdmissionStatus;
 import com.hyperbrains.hms.domain.enumeration.BillStatus;
 import com.hyperbrains.hms.domain.enumeration.ConsultationStatus;
 import com.hyperbrains.hms.domain.enumeration.OrderType;
@@ -23,6 +25,7 @@ import com.hyperbrains.hms.domain.enumeration.Sex;
 import com.hyperbrains.hms.domain.enumeration.VisitPriority;
 import com.hyperbrains.hms.domain.enumeration.VisitStatus;
 import com.hyperbrains.hms.domain.enumeration.VisitType;
+import com.hyperbrains.hms.repository.AdmissionRepository;
 import com.hyperbrains.hms.repository.AuditLogRepository;
 import com.hyperbrains.hms.repository.BillLineItemRepository;
 import com.hyperbrains.hms.repository.BillRepository;
@@ -154,6 +157,9 @@ class VisitAdmissionIT {
     private AuditLogRepository auditLogRepository;
 
     @Autowired
+    private AdmissionRepository admissionRepository;
+
+    @Autowired
     private HospitalIdService hospitalIdService;
 
     private Patient patient;
@@ -228,8 +234,11 @@ class VisitAdmissionIT {
             .filter(Objects::nonNull)
             .toList();
 
-        // Deepest first: an order carries a reference to its result, and the visit carries references to
-        // the consultation, the bill and the vitals.
+        // Deepest first: an admission holds its visit, an order carries a reference to its result, and the
+        // visit carries references to the consultation, the bill and the vitals.
+        visits.forEach(visit ->
+            admissionRepository.findByVisitId(visit.getId()).ifPresent(admission -> admissionRepository.deleteById(admission.getId()))
+        );
         prescriptions.forEach(prescription -> {
             prescriptionLineRepository.deleteAll(prescriptionLineRepository.findWithDrugByPrescriptionId(prescription.getId()));
             prescriptionRepository.deleteById(prescription.getId());
@@ -489,6 +498,51 @@ class VisitAdmissionIT {
                 VisitStatus.IN_CONSULTATION.name().equals(entry.getOldValue()) &&
                 VisitStatus.ADMITTED.name().equals(entry.getNewValue())
             );
+    }
+
+    // ---------------------------------------------------------------- the stay opened with it
+
+    @Test
+    void admittingAlsoOpensAStayThatIsWaitingForABed() {
+        Visit visit = visitInConsultation();
+
+        VisitAdmissionResultDTO result = admissionService.admit(visit.getId(), admit("Cellulitis needing IV antibiotics"));
+
+        Admission admission = admissionRepository.findByVisitId(visit.getId()).orElseThrow();
+        assertThat(result.admissionId()).as("the caller is told which stay to put a bed into").isEqualTo(admission.getId());
+        assertThat(admission.getStatus()).isEqualTo(AdmissionStatus.PENDING_BED);
+        assertThat(admission.getBed()).as("no bed has been chosen at this point").isNull();
+        assertThat(admission.getAdmissionReason()).isEqualTo("Cellulitis needing IV antibiotics");
+        assertThat(admission.getVisit().getId()).isEqualTo(visit.getId());
+        assertThat(admission.getAdmittedAt())
+            .as("the stay and the result agree on when it started, to the precision the column stores")
+            .isBetween(result.admittedAt().minusSeconds(1), result.admittedAt().plusSeconds(1));
+        assertThat(admission.getAdmittingDoctor()).isNotNull();
+        assertThat(admission.getPrimaryDoctor().getId())
+            .as("the admitting doctor is responsible for the patient until somebody is put in charge instead")
+            .isEqualTo(admission.getAdmittingDoctor().getId());
+    }
+
+    /**
+     * One stay per visit, held by the unique index on {@code visit_id} as well as by the type check: the
+     * type could have been changed by hand through a route that does not belong to this workflow.
+     */
+    @Test
+    void aVisitIsAdmittedOnceSoItProducesExactlyOneStay() {
+        Visit visit = visitInConsultation();
+        admissionService.admit(visit.getId(), admit("First decision"));
+
+        assertThatThrownBy(() -> admissionService.admit(visit.getId(), admit("Second attempt")))
+            .isInstanceOf(BusinessRuleViolationException.class);
+
+        assertThat(
+            admissionRepository
+                .findAllWithToOneRelationships()
+                .stream()
+                .filter(admission -> admission.getVisit() != null && visit.getId().equals(admission.getVisit().getId()))
+        )
+            .as("the second attempt left no second record behind")
+            .hasSize(1);
     }
 
     // ---------------------------------------------------------------- helpers

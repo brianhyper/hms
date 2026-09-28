@@ -14,6 +14,17 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface AdmissionTransferRepository extends JpaRepository<AdmissionTransfer, Long> {
+    /**
+     * Every move this stay has been through, oldest first.
+     *
+     * <p>The table is an append-only log: a row is a thing that happened, never something that is edited
+     * afterwards, which is why it carries no version column. "Where has this patient been" is this query.
+     *
+     * <p>Ordered by time and then by id, because two moves made in the same instant would otherwise come
+     * back in whatever order the database felt like, and a location history that says a patient went from B
+     * to A after going from A to B is worse than no history at all.
+     */
+    List<AdmissionTransfer> findByAdmissionIdOrderByTransferredAtAscIdAsc(Long admissionId);
     @Query(
         "select admissionTransfer from AdmissionTransfer admissionTransfer where admissionTransfer.transferredBy.login = ?#{authentication.name}"
     )

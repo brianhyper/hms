@@ -72,6 +72,18 @@ public class Admission implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     private User dischargedByNurse;
 
+    /**
+     * Optimistic locking guard. Putting a patient into a bed is a two-row change — this admission gains a
+     * bed and the bed becomes occupied — so two nurses assigning different beds to the same patient at the
+     * same moment must not both succeed: one of them would leave a bed marked occupied with no admission
+     * pointing at it, and no way to notice. The bed's own version column catches two patients racing for
+     * one bed; this one catches one patient racing for two beds. The column is added by hand in
+     * 20260928110000_added_phase2_admission_version.xml, since @Version is not expressible in JDL.
+     */
+    @Version
+    @Column(name = "version")
+    private int version;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {

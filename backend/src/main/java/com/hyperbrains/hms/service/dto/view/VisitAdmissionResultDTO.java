@@ -22,6 +22,7 @@ import java.time.Instant;
  */
 public record VisitAdmissionResultDTO(
     Long visitId,
+    Long admissionId,
     VisitType visitType,
     VisitStatus visitStatus,
     Long patientId,

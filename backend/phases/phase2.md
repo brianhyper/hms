@@ -594,3 +594,25 @@ those existing entity files**, silently discarding the hand edits. So Phase 2's
 JDL contains only the new entities, and after every generation step the diff is
 inspected before anything is staged — which is now cheap, because the repository
 is under version control.
+
+### Delivered out of order (2026-09-28)
+
+**Ward transfer was built on top of slice 3, not after the billing slices.** "Move
+this patient from the ICU bed to an ordinary ward bed, and say why" is a clinical
+need that exists before any of the money does, so slice 8's `AdmissionTransfer`,
+the bed status moves and the live ward derivation were done with slice 3. The
+consequence to keep in mind is that slices 6 and 7 will be the first things to
+read the *result* of a transfer: the bed-day rate follows the current bed, so the
+next daily charge after a move is the first place the new bed's rate is used.
+
+Two decisions were taken with it, and both settle questions from §11:
+
+- **Who may move a patient:** nurse and administrator, the same role set that
+  gives somebody a bed — §4's recommendation, and §11 question 5 answered.
+- **A move is a recorded event, a placement is not.** `AdmissionTransfer` rows are
+  written by moves only. The first placement is recorded as an audit entry
+  (`BED_ASSIGNED`) and explained by the admission's own `admissionReason`, so
+  `fromBed` is never null in this build even though the schema allows it: writing
+  a row for the first bed would mean inventing a reason for something that already
+  has one. The bed being left always goes to `CLEANING`, never straight back to
+  `AVAILABLE`.
