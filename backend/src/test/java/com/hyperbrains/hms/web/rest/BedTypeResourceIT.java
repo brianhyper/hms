@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hyperbrains.hms.IntegrationTest;
 import com.hyperbrains.hms.domain.BedType;
 import com.hyperbrains.hms.repository.BedTypeRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.dto.BedTypeDTO;
 import com.hyperbrains.hms.service.mapper.BedTypeMapper;
 import jakarta.persistence.EntityManager;
@@ -33,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class BedTypeResourceIT {
 
     private static final String DEFAULT_NAME = "AAAAAAAAAA";

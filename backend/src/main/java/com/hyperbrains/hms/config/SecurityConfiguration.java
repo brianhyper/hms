@@ -342,6 +342,59 @@ public class SecurityConfiguration {
                     .requestMatchers(HttpMethod.POST, "/api/visit-referrals/*/create", "/api/visit-referrals/*/email").hasAnyAuthority(DOCTOR, ADMIN, SUPER_ADMIN)
 
                     // ===============================================================
+                    // PHASE 2 RBAC TABLE — inpatient
+                    // ===============================================================
+
+                    // ---- Ward and bed reference data (slice 2) ----
+                    // A ward is a physical place and a bed is a physical object: the people who put a patient
+                    // into one, or tell somebody which one to go to, are the desk, the nurses and the doctors.
+                    // Every write to these four entities is closed to Super Admin, because raw CRUD is not the
+                    // business path — it can set a bed's status to OCCUPIED with no admission behind it. The two
+                    // lifecycle actions below are the doors staff actually use.
+                    .requestMatchers(HttpMethod.GET, "/api/wards", "/api/wards/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/wards", "/api/wards/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    .requestMatchers(HttpMethod.GET, "/api/bed-types", "/api/bed-types/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/bed-types", "/api/bed-types/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    // The roster that decides which doctor sees which ward's patients. Super Admin owns it;
+                    // nurses and doctors may read who is covering.
+                    .requestMatchers(HttpMethod.GET, "/api/ward-covers", "/api/ward-covers/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/ward-covers", "/api/ward-covers/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    .requestMatchers(HttpMethod.GET, "/api/beds", "/api/beds/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // Housekeeping does not exist as a Phase 1 role, so closing the cleaning loop after a patient
+                    // leaves is a nurse's or an administrator's job. Listed before the bed write catch-all below,
+                    // which would otherwise swallow them and make a bed una-releasable.
+                    .requestMatchers(HttpMethod.PUT, "/api/beds/*/available", "/api/beds/*/maintenance").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/beds", "/api/beds/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    // Where can this patient go. Read by whoever assigns a bed, and by any doctor asking about
+                    // capacity. Finance is not on the list yet; the bed-day rate is exposed here for the person
+                    // choosing a bed, not for billing, which reads the catalogue directly.
+                    .requestMatchers(HttpMethod.GET, "/api/bed-availability", "/api/bed-availability/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+
+                    // ---- The stay itself (slice 3) ----
+                    // A stay is clinical content: the ward staff and the doctors who own it read it, and so do
+                    // administrators. The desk runs the outpatient side and the pharmacy has no business with it.
+                    .requestMatchers(HttpMethod.GET, "/api/admissions", "/api/admissions/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // Putting a patient into a bed is the nurse's job and the ward administrator's; §3 of the
+                    // specification gives it to Nurse/Admin, and the transfer slice will use the same role set.
+                    .requestMatchers(HttpMethod.PUT, "/api/admissions/*/bed").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    // Moving a patient between beds, which is the same job as putting them in one and uses the
+                    // same role set. §4 of the specification asks for the two to agree rather than drift.
+                    .requestMatchers(HttpMethod.POST, "/api/admissions/*/transfers").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    // The location history is append-only: it says what happened, so it may be read by the ward
+                    // and rewritten by nobody. A move that did not happen cannot be edited into one that did.
+                    .requestMatchers(HttpMethod.GET, "/api/admission-transfers", "/api/admission-transfers/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/admission-transfers", "/api/admission-transfers/**").hasAnyAuthority(SUPER_ADMIN)
+                    // Raw CRUD can set the status and the bed by hand, which would make the action above and its
+                    // guards optional, so it is not open to the roles that run the ward.
+                    .requestMatchers("/api/admissions", "/api/admissions/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    .requestMatchers(HttpMethod.GET, "/api/inpatient-worklist", "/api/inpatient-worklist/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+
+                    // ===============================================================
                     // Catch-all: any authenticated hospital user (keeps /api/account
                     // working for the stock ROLE_USER so the login flow is unaffected).
                     // ===============================================================

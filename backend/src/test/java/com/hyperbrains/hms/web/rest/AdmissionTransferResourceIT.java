@@ -16,6 +16,7 @@ import com.hyperbrains.hms.domain.Bed;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.AdmissionTransferRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.AdmissionTransferService;
 import com.hyperbrains.hms.service.dto.AdmissionTransferDTO;
 import com.hyperbrains.hms.service.mapper.AdmissionTransferMapper;
@@ -45,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class AdmissionTransferResourceIT {
 
     private static final Instant DEFAULT_TRANSFERRED_AT = Instant.ofEpochMilli(0L);

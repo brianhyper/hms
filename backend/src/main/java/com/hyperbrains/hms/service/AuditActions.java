@@ -60,5 +60,18 @@ public final class AuditActions {
     public static final String REFERRAL_CREATED = "REFERRAL_CREATED";
     public static final String REFERRAL_LETTER_EMAILED = "REFERRAL_LETTER_EMAILED";
 
+    // Inpatient (Phase 2)
+    /** A bed moved between statuses: released as ready, or taken out of service. */
+    public static final String BED_STATUS_CHANGED = "BED_STATUS_CHANGED";
+
+    /** A patient was put into a bed. */
+    public static final String BED_ASSIGNED = "BED_ASSIGNED";
+
+    /** A stay moved between statuses: a bed was found, or the patient was discharged. */
+    public static final String ADMISSION_STATUS_CHANGED = "ADMISSION_STATUS_CHANGED";
+
+    /** A patient was moved from one bed to another, with a reason. */
+    public static final String WARD_TRANSFERRED = "WARD_TRANSFERRED";
+
     private AuditActions() {}
 }

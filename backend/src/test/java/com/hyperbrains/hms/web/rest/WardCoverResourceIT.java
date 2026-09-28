@@ -15,6 +15,7 @@ import com.hyperbrains.hms.domain.Ward;
 import com.hyperbrains.hms.domain.WardCover;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.repository.WardCoverRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.WardCoverService;
 import com.hyperbrains.hms.service.dto.WardCoverDTO;
 import com.hyperbrains.hms.service.mapper.WardCoverMapper;
@@ -44,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class WardCoverResourceIT {
 
     private static final Instant DEFAULT_COVERS_FROM = Instant.ofEpochMilli(0L);

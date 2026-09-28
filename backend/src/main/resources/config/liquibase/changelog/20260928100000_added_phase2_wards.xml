@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        A ward, its bed types and a few beds, so the ward and bed screens are not empty on a fresh
+        development database — and, more importantly, so the bed-day rate has a non-zero number in it.
+        The stay-billing slice reads these rates; a development database whose rates are all zero makes
+        the whole billing path a silent no-op while every test still passes.
+
+        WHY context="dev"
+        This is reference data for one hospital, not schema. A real deployment's wards, bed types and
+        prices are entered by its own administrators, and application-prod.yml runs only the `prod`
+        context, so none of these rows can ever appear in a production database.
+
+        WHY NOT THE FAKER CSV FILES
+        config/liquibase/fake-data/{ward,bed_type,bed}.csv already fill these tables in a development
+        database, with Faker.js names ("knowledgeably per", "meh pfft") and random rates between about
+        800 and 29,000 shillings. They are loaded because `spring.liquibase.contexts` in
+        application-dev.yml is `dev, faker` — JHipster's stock arrangement. Random rates are worse than
+        no rates for anything that reads a price, and a ward cannot be found by name when it is called
+        "inasmuch". Those files belong to already-released changesets and cannot be edited without
+        invalidating every database that has run them, so this changelog adds named reference data
+        alongside rather than replacing it.
+
+        WHO OWNS WHAT
+        The entities are Ward, BedType and Bed (Phase 2 slice 1). The pricing rule — a bed's own rate
+        wins over its type's — is in com.hyperbrains.hms.service.rules.BedPricing, and the status
+        lifecycle is in BedLifecycle. This file only supplies rows.
+
+        IDEMPOTENT
+        Every statement is keyed on a unique column (department.name, bed_type.name, ward.name, and
+        bed's unique (ward_id, bed_number)), so re-running is a no-op and a fresh database and an
+        existing one converge on the same state. Ids come from sequence_generator rather than literals,
+        so these rows can never collide with ones created through the application.
+
+        THE RATES ARE PLACEHOLDERS
+        Four bed types at KES 3,500 / 5,000 / 8,000 / 15,000 a night. They are plausible, not agreed:
+        they are a commercial decision that has not been made, and they are recorded here so that the
+        numbers in a development database are visibly real rather than silently zero. Confirm or
+        replace them before the stay-billing slice is demonstrated to anybody.
+    -->
+    <changeSet id="20260928100000-1" author="hms" context="dev">
+        <comment>Two clinical departments to hang the seeded wards off</comment>
+        <sql>
+            INSERT INTO department (id, name, code, active)
+            SELECT nextval('sequence_generator'), v.name, v.code, true
+            FROM (VALUES
+                ('Internal Medicine',        'INTMED'),
+                ('Obstetrics and Gynaecology', 'OBGYN')
+            ) AS v(name, code)
+            WHERE NOT EXISTS (SELECT 1 FROM department existing WHERE existing.name = v.name);
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260928100000-2" author="hms" context="dev">
+        <comment>One bed type per category of bed, with a real nightly rate</comment>
+        <sql>
+            INSERT INTO bed_type (id, name, default_daily_rate, active)
+            SELECT nextval('sequence_generator'), v.name, v.rate, true
+            FROM (VALUES
+                ('GENERAL',   3500.00),
+                ('MATERNITY', 5000.00),
+                ('HDU',       8000.00),
+                ('ICU',      15000.00)
+            ) AS v(name, rate)
+            WHERE NOT EXISTS (SELECT 1 FROM bed_type existing WHERE existing.name = v.name);
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260928100000-3" author="hms" context="dev">
+        <comment>Two wards under those departments</comment>
+        <sql>
+            INSERT INTO ward (id, name, location, active, department_id)
+            SELECT nextval('sequence_generator'), v.name, v.location, true, d.id
+            FROM (VALUES
+                ('General Ward A',  'Block B, 1st floor', 'Internal Medicine'),
+                ('Maternity Ward',  'Block C, 1st floor', 'Obstetrics and Gynaecology')
+            ) AS v(name, location, department_name)
+            JOIN department d ON d.name = v.department_name
+            WHERE NOT EXISTS (SELECT 1 FROM ward existing WHERE existing.name = v.name);
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260928100000-4" author="hms" context="dev">
+        <comment>Six beds across those wards, all available and none price-overridden</comment>
+        <sql>
+            INSERT INTO bed (id, bed_number, daily_rate_override, status, ward_id, bed_type_id, version)
+            SELECT nextval('sequence_generator'), v.bed_number, NULL, 'AVAILABLE', w.id, t.id, 0
+            FROM (VALUES
+                ('General Ward A', 'GENERAL',   'A-01'),
+                ('General Ward A', 'GENERAL',   'A-02'),
+                ('General Ward A', 'GENERAL',   'A-03'),
+                ('General Ward A', 'HDU',       'A-04'),
+                ('Maternity Ward', 'MATERNITY', 'M-01'),
+                ('Maternity Ward', 'MATERNITY', 'M-02')
+            ) AS v(ward_name, bed_type_name, bed_number)
+            JOIN ward w ON w.name = v.ward_name
+            JOIN bed_type t ON t.name = v.bed_type_name
+            WHERE NOT EXISTS (
+                SELECT 1 FROM bed existing WHERE existing.ward_id = w.id AND existing.bed_number = v.bed_number
+            );
+        </sql>
+    </changeSet>
+</databaseChangeLog>

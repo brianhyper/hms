@@ -16,6 +16,7 @@ import com.hyperbrains.hms.domain.Visit;
 import com.hyperbrains.hms.domain.enumeration.AdmissionStatus;
 import com.hyperbrains.hms.repository.AdmissionRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.AdmissionService;
 import com.hyperbrains.hms.service.dto.AdmissionDTO;
 import com.hyperbrains.hms.service.mapper.AdmissionMapper;
@@ -45,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class AdmissionResourceIT {
 
     private static final Instant DEFAULT_ADMITTED_AT = Instant.ofEpochMilli(0L);
@@ -171,7 +172,9 @@ class AdmissionResourceIT {
     @AfterEach
     void cleanup() {
         if (insertedAdmission != null) {
-            admissionRepository.delete(insertedAdmission);
+            // deleteById re-reads the row first so the optimistic-locking check uses the current version.
+            // The cached entity is stale whenever a test modified it (Admission carries @Version).
+            admissionRepository.deleteById(insertedAdmission.getId());
             insertedAdmission = null;
         }
     }

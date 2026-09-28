@@ -82,5 +82,7 @@
     <include file="config/liquibase/changelog/20260925120000_added_phase1_dev_users.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260925130000_added_phase1_consultation_fee.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260925140000_added_phase2_inpatient.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260928100000_added_phase2_wards.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260928110000_added_phase2_admission_version.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

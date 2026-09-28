@@ -12,6 +12,7 @@ import com.hyperbrains.hms.IntegrationTest;
 import com.hyperbrains.hms.domain.Department;
 import com.hyperbrains.hms.domain.Ward;
 import com.hyperbrains.hms.repository.WardRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.dto.WardDTO;
 import com.hyperbrains.hms.service.mapper.WardMapper;
 import jakarta.persistence.EntityManager;
@@ -32,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class WardResourceIT {
 
     private static final String DEFAULT_NAME = "AAAAAAAAAA";

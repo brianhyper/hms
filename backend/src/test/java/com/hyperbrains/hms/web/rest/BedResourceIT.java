@@ -15,6 +15,7 @@ import com.hyperbrains.hms.domain.BedType;
 import com.hyperbrains.hms.domain.Ward;
 import com.hyperbrains.hms.domain.enumeration.BedStatus;
 import com.hyperbrains.hms.repository.BedRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.dto.BedDTO;
 import com.hyperbrains.hms.service.mapper.BedMapper;
 import jakarta.persistence.EntityManager;
@@ -36,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class BedResourceIT {
 
     private static final String DEFAULT_BED_NUMBER = "AAAAAAAAAA";

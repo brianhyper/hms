@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Optimistic locking on Admission.
+
+        Putting a patient into a bed changes two rows: the admission gains a bed, and the bed becomes
+        occupied. The bed's own version column, added in 20260925140000_added_phase2_inpatient.xml, catches
+        two patients racing for one bed. It does not catch one patient racing for two beds: two nurses
+        assigning different beds to the same admission both find a free bed, both mark it occupied, and the
+        admission ends up pointing at one of them while the other stays occupied with nobody in it. That is
+        a lost bed with no symptom, so the admission is versioned too.
+
+        Same shape as the bed's column and Phase 1's version columns: a non-null integer defaulting to 0,
+        because JPA's @Version on a primitive int reads a null as an absent version rather than as zero.
+    -->
+    <changeSet id="20260928110000-1" author="hms">
+        <comment>Optimistic locking on Admission, so one patient cannot be put into two beds at once.</comment>
+        <addColumn tableName="admission">
+            <column name="version" type="integer" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>
