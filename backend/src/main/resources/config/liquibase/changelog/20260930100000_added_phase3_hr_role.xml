@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Phase 3's ninth hospital role: HR.
+
+        WHY THIS ROLE EXISTS
+        Phase 3 keeps User (authentication and account state) separate from StaffRecord (HR data), so that
+        a cleaner or a security guard can have an HR record without ever having a login. That separation is
+        only useful if somebody other than the system administrator may keep those records, and that
+        somebody is HR.
+
+        WHY NOT authority.csv
+        The same reason the Phase 1 roles went into their own changelog: the CSV files are loaded by
+        changeset 00000000000001, which is already released and checksummed, so editing them makes
+        Liquibase fail validation on every database that has already run it.
+
+        WHY THE ROLE ROW HAS NO CONTEXT
+        Roles are reference data, not sample data. The Phase 1 authorities carry no context for the same
+        reason: a test database needs the row to exist before it can attach it to a user, and the row
+        grants nothing on its own — the role-to-endpoint mapping lives in SecurityConfiguration's RBAC
+        table and nowhere else.
+
+        WHY THE LOGIN HAS context="dev"
+        The seeded password is publicly known. application-dev.yml runs the `dev` context and
+        application-prod.yml runs only `prod`, so this account cannot be created in a production database.
+
+        IDEMPOTENT
+        The role is inserted only if it is absent, the account only if the login is absent, and the
+        authorities are attached with ON CONFLICT DO NOTHING, so a fresh database and an existing one
+        converge on the same state.
+    -->
+    <changeSet id="20260930100000-1" author="hms">
+        <comment>Add the Phase 3 HR role to the authority table</comment>
+        <sql>
+            INSERT INTO jhi_authority (name)
+            SELECT 'ROLE_HR'
+            WHERE NOT EXISTS (SELECT 1 FROM jhi_authority WHERE name = 'ROLE_HR');
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260930100000-2" author="hms" context="dev">
+        <comment>Seed one development login for the HR role (password: admin)</comment>
+        <sql>
+            INSERT INTO jhi_user (
+                id, login, password_hash, first_name, last_name, email,
+                activated, lang_key, created_by, created_date, last_modified_by, last_modified_date
+            )
+            SELECT
+                nextval('sequence_generator'), v.login, h.password_hash, v.first_name, v.last_name, v.email,
+                true, 'en', 'system', now(), 'system', now()
+            FROM (VALUES
+                ('hr', 'Human', 'Resources', 'hr@localhost')
+            ) AS v(login, first_name, last_name, email)
+            CROSS JOIN (VALUES
+                -- The BCrypt hash of 'admin', the same one every development account carries. Dev only.
+                ('$2a$10$gSAhZrxMllrbgj/kkK9UceBPpChGWJA7SYIb1Mqo.n5aNLq1/oRrC')
+            ) AS h(password_hash)
+            WHERE NOT EXISTS (SELECT 1 FROM jhi_user existing WHERE existing.login = v.login);
+
+            INSERT INTO jhi_user_authority (user_id, authority_name)
+            SELECT u.id, v.authority_name
+            FROM (VALUES
+                ('hr', 'ROLE_HR'),
+                ('hr', 'ROLE_USER')
+            ) AS v(login, authority_name)
+            INNER JOIN jhi_user u ON u.login = v.login
+            ON CONFLICT DO NOTHING;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

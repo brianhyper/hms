@@ -9,5 +9,5 @@ import org.springframework.security.test.context.support.WithMockUser;
 @CucumberContextConfiguration
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser(authorities = AuthoritiesConstants.ADMIN)
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 public class CucumberTestContextConfiguration {}

@@ -12,6 +12,12 @@ package com.hyperbrains.hms.security;
  * block). Row-level and field-level restrictions (a Lab user only ever seeing lab
  * orders; Finance never seeing clinical notes) cannot be expressed as a role check and
  * are enforced in the service layer.
+ *
+ * <p>Phase 3 fixes the model at nine hospital roles and separates Administration from
+ * Super Admin: Administration runs the hospital, Super Admin runs the system and is the
+ * only role that creates accounts. {@link #RADIOLOGY} is the one role the Phase 3 list
+ * does not mention; it is kept until that is settled, and {@code RoleModelTest} names it
+ * so that any other addition to the model has to be deliberate.
  */
 public final class AuthoritiesConstants {
 
@@ -48,6 +54,15 @@ public final class AuthoritiesConstants {
 
     /** Billing and payment collection. */
     public static final String FINANCE = "ROLE_FINANCE";
+
+    /**
+     * Human resources: staff records, including for people who never log in (cleaners, security).
+     *
+     * <p>Phase 3's role list has no Radiology among its nine, while {@link #RADIOLOGY} is a Phase 1 role
+     * with its own queues and RBAC rows. Until that is settled, both exist: adding a role breaks nothing,
+     * and removing one silently would.
+     */
+    public static final String HR = "ROLE_HR";
 
     private AuthoritiesConstants() {}
 }

@@ -73,8 +73,13 @@ public class SecurityConfiguration {
 
                     // ===============================================================
                     // Platform admin
+                    //
+                    // Phase 3 splits operational administration from system administration and gives
+                    // account and role management to the system side alone: only Super Admin creates
+                    // accounts. So this prefix is Super Admin's, and Administration does not reach it
+                    // even though it runs the hospital's day-to-day operations.
                     // ===============================================================
-                    .requestMatchers("/api/admin/**").hasAuthority(ADMIN)
+                    .requestMatchers("/api/admin/**").hasAuthority(SUPER_ADMIN)
                     .requestMatchers("/v3/api-docs/**").hasAuthority(ADMIN)
                     .requestMatchers("/management/health").permitAll()
                     .requestMatchers("/management/health/**").permitAll()
