@@ -89,6 +89,17 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
     @Column(name = "locked_at")
     private Instant lockedAt;
 
+    /**
+     * When a request last arrived on this account's session, for the idle timeout.
+     *
+     * <p>A signed token cannot answer "has this session been idle for half an hour?", so the answer is remembered
+     * here, on the account. It is written straight against the row rather than through the account object the
+     * session filter otherwise uses, because that object is served from a cache and a cached copy of a value
+     * written on requests would be a value that never moved.
+     */
+    @Column(name = "last_activity_at")
+    private Instant lastActivityAt;
+
     @Size(min = 2, max = 10)
     @Column(name = "lang_key", length = 10)
     private String langKey;
@@ -208,6 +219,14 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     public void setLockedAt(Instant lockedAt) {
         this.lockedAt = lockedAt;
+    }
+
+    public Instant getLastActivityAt() {
+        return lastActivityAt;
+    }
+
+    public void setLastActivityAt(Instant lastActivityAt) {
+        this.lastActivityAt = lastActivityAt;
     }
 
     public String getActivationKey() {

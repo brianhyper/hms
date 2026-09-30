@@ -35,11 +35,21 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>Runs after the bearer token has been read, so it sees a decoded {@link Jwt}; before that point there is no
  * principal and it does nothing, which is also why the registration Boot may add alongside the security chain
  * costs nothing.
+ *
+ * <p>The same place ends a session that has been left alone for longer than Phase 3 allows, by remembering when a
+ * request last arrived on the account. That stamp is read and written straight against the row rather than through
+ * the account object the revocation check uses, because that object is served from the {@code usersByLogin}
+ * cache: a cached copy of a value this filter writes would be a value that never moved, which would mean a
+ * timeout that never fires and an active session refused once its token got old enough. The write is deliberately
+ * not made on a refused request, or the session would come back to life on the next one.
  */
 public class SessionValidityFilter extends OncePerRequestFilter {
 
     private static final String SESSION_ENDED =
         "{\"errorKey\":\"sessionEnded\",\"message\":\"This session is no longer valid: the account has been deactivated or its sessions were ended\"}";
+
+    private static final String SESSION_IDLE =
+        "{\"errorKey\":\"sessionIdle\",\"message\":\"This session has ended: it went unused for longer than the idle time allowed\"}";
 
     private final ObjectProvider<UserRepository> userRepository;
 
@@ -70,9 +80,22 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         Jwt jwt = token.orElseThrow();
         Optional<User> account = accounts.findOneWithAuthoritiesByLogin(jwt.getSubject());
 
-        if (account.isPresent() && wasEnded(account.orElseThrow(), jwt)) {
-            refuse(response);
-            return;
+        if (account.isPresent()) {
+            User user = account.orElseThrow();
+            if (wasEnded(user, jwt)) {
+                refuse(response, SESSION_ENDED);
+                return;
+            }
+
+            Instant now = Instant.now();
+            Instant lastActivity = accounts.findLastActivityAtByLogin(jwt.getSubject()).orElse(null);
+            if (SessionIdle.hasGoneIdle(lastActivity, jwt.getIssuedAt(), now)) {
+                refuse(response, SESSION_IDLE);
+                return;
+            }
+            if (SessionIdle.shouldRecordActivity(lastActivity, now)) {
+                accounts.recordActivityAt(jwt.getSubject(), now);
+            }
         }
 
         filterChain.doFilter(request, response);
@@ -98,9 +121,9 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         return Optional.empty();
     }
 
-    private static void refuse(HttpServletResponse response) throws IOException {
+    private static void refuse(HttpServletResponse response, String body) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.getWriter().write(SESSION_ENDED);
+        response.getWriter().write(body);
     }
 }

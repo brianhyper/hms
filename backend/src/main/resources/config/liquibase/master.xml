@@ -89,5 +89,6 @@
     <include file="config/liquibase/changelog/20260930100000_added_phase3_hr_role.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260930110000_added_phase3_session_validity.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260930120000_added_phase3_lockout.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260930130000_added_phase3_idle_timeout.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

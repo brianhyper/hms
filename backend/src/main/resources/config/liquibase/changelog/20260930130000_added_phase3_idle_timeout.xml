@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        When a session was last used, so that leaving one alone can end it.
+
+        WHY THE TIME OF THE LAST REQUEST IS STORED
+        A signed token says who is holding it and when it was issued, and nothing else, so the token cannot answer
+        "has this session been idle for half an hour?". Holding the answer in memory would answer it only for
+        whichever node served the last request, would lose it on every deploy, and would mean the timeout never
+        fires for a session that moved between nodes - which is the case the timeout exists for.
+
+        WHY IT IS ONE TIMESTAMP PER ACCOUNT AND NOT ONE PER SESSION
+        Per-session would need the token registry this design deliberately avoids. The requirement is a session
+        timeout, and two sessions for one account belong to one person: signing out one of them signing out both
+        is a consequence worth stating rather than hiding.
+
+        WHY NOTHING IS BACKFILLED
+        Nullable, and null means "no request has been recorded yet". The rule then ages the session from the
+        token's own issue time, so every token that exists when this lands is judged from when it was issued
+        rather than being thrown out by a column added underneath it.
+    -->
+    <changeSet id="20260930130000-1" author="hms">
+        <comment>Add jhi_user.last_activity_at for the idle session timeout</comment>
+        <addColumn tableName="jhi_user">
+            <column
+                name="last_activity_at"
+                type="timestamp"
+                remarks="When a request last arrived on this account's session; a session unused for longer than the idle timeout is refused">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

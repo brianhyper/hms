@@ -46,7 +46,7 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 |---|---|---|---|
 | S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
-| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation and lockout delivered**; idle timeout, forced first-login change and one-time reset tokens **open** |
+| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation, lockout and idle timeout delivered**; forced first-login change and one-time reset tokens **open** |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **part: account events are audited**; the audit read rows are still method-agnostic |
 | S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
 | S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
@@ -68,6 +68,17 @@ reaches the real login path. `getMappedStatus` now looks through that wrap for t
 genuine failure to reach the database is still reported as the server error it is. `AccountLockoutIT` is the
 only test that signs in for real, and it asserts that the answer for a locked account is byte-identical to the
 answer for a wrong password — the non-disclosure decision in `DomainUserDetailsService`, made testable.
+
+**The idle timeout sits on the same filter, and had one trap in it worth recording.** The time of the last request
+is remembered on the account rather than in memory, because a memory copy answers for one node and is lost on
+deploy. But the account the revocation check loads is served from the `usersByLogin` cache, and a cached copy of a
+value written on requests would be a value that never moved — an idle timeout that never fires, and an active
+session refused once its token was old enough. So that one value is read and written straight against the row,
+at most once per thirty seconds rather than once per request. The token's own issue time is a floor under the
+recorded activity, so signing in again after an absence starts fresh instead of being refused on its first use by
+the previous session's age. Activity is per account rather than per token, so two concurrent sessions for one
+account share it — using one keeps the other alive; per-session tracking would need the token registry this
+design avoids.
 
 **Left as a decision, not taken silently:** the answer for a never-activated account still says so, which
 confirms to an anonymous caller that the account exists. That is JHipster's original wording and it tells a

@@ -8,6 +8,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.util.Base64;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import javax.crypto.Mac;
@@ -35,13 +36,22 @@ public class JwtAuthenticationTestUtils {
     }
 
     public static String createValidTokenForUser(String jwtKey, String user) {
+        var now = Instant.now();
+        return createValidTokenForUserIssuedAt(jwtKey, user, now, Duration.ofSeconds(60));
+    }
+
+    /**
+     * A token with the window chosen by the caller.
+     *
+     * <p>For the controls that are about the passage of time rather than the signature: a session is idle because
+     * its token was issued long enough ago, so the token has to be able to be old and still valid.
+     */
+    public static String createValidTokenForUserIssuedAt(String jwtKey, String user, Instant issuedAt, Duration validFor) {
         JwtEncoder encoder = jwtEncoder(jwtKey);
 
-        var now = Instant.now();
-
         JwtClaimsSet claims = JwtClaimsSet.builder()
-            .issuedAt(now)
-            .expiresAt(now.plusSeconds(60))
+            .issuedAt(issuedAt)
+            .expiresAt(issuedAt.plus(validFor))
             .subject(user)
             .claims(customClaim -> customClaim.put(AUTHORITIES_CLAIM, List.of(ADMIN)))
             .build();
