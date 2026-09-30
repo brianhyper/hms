@@ -64,6 +64,17 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
     @Column(name = "activated", nullable = false)
     private boolean activated = false;
 
+    /**
+     * When this account's sessions stopped being accepted, or null if that has never happened.
+     *
+     * <p>Set when the account is deactivated. Tokens are signed and stateless, so the only way to end a session
+     * that is already open is to refuse tokens older than a moment the server remembers — which is this. It is
+     * never cleared: reactivating an account lets that person sign in again (a new token is issued after this
+     * moment), while the sessions from before stay dead, which is what deactivation meant.
+     */
+    @Column(name = "sessions_valid_from")
+    private Instant sessionsValidFrom;
+
     @Size(min = 2, max = 10)
     @Column(name = "lang_key", length = 10)
     private String langKey;
@@ -159,6 +170,14 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     public void setActivated(boolean activated) {
         this.activated = activated;
+    }
+
+    public Instant getSessionsValidFrom() {
+        return sessionsValidFrom;
+    }
+
+    public void setSessionsValidFrom(Instant sessionsValidFrom) {
+        this.sessionsValidFrom = sessionsValidFrom;
     }
 
     public String getActivationKey() {

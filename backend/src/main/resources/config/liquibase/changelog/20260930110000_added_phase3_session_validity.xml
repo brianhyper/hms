@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        When an account's existing sessions stop being accepted.
+
+        WHY A COLUMN AND NOT A TOKEN BLACKLIST
+        The tokens are stateless and signed, so nothing can be taken back once issued — which meant that
+        deactivating an account blocked the next sign-in but left whoever was already signed in working until
+        their token expired naturally. For the case this exists for (an account switched off during an
+        investigation, with a session still open on a ward machine) that is the wrong answer.
+
+        A blacklist of individual tokens would be finer-grained and would grow for ever. A single timestamp per
+        account answers the question that is actually being asked - "is this token older than the moment the
+        account was switched off?" - and it revokes every session that account had, which is what deactivation
+        means. It also makes "sign me out everywhere" free if it is ever wanted.
+
+        Nullable on purpose: null means "nothing has ever invalidated this account's sessions", which is true of
+        every account that exists today, so no backfill is needed and existing tokens keep working.
+    -->
+    <changeSet id="20260930110000-1" author="hms">
+        <comment>Add jhi_user.sessions_valid_from for revoking an account's live sessions</comment>
+        <addColumn tableName="jhi_user">
+            <column
+                name="sessions_valid_from"
+                type="timestamp"
+                remarks="Tokens issued before this instant are refused; set when an account is deactivated">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -4,6 +4,7 @@ import static com.hyperbrains.hms.security.AuthoritiesConstants.*;
 import static org.springframework.security.config.Customizer.withDefaults;
 
 import com.hyperbrains.hms.security.*;
+import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.web.filter.SpaWebFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -37,10 +39,18 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) {
+    public SessionValidityFilter sessionValidityFilter(org.springframework.beans.factory.ObjectProvider<UserRepository> userRepository) {
+        return new SessionValidityFilter(userRepository);
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, SessionValidityFilter sessionValidityFilter) {
         http.cors(withDefaults())
             .csrf(csrf -> csrf.disable())
             .addFilterAfter(new SpaWebFilter(), BasicAuthenticationFilter.class)
+            // After the bearer token has been decoded, so it has a principal to judge: a deactivated account's
+            // token, or one issued before that account's sessions were ended, is refused from here on.
+            .addFilterAfter(sessionValidityFilter, BearerTokenAuthenticationFilter.class)
             .headers(headers ->
                 headers
                     .contentSecurityPolicy(csp -> csp.policyDirectives(jHipsterProperties.getSecurity().getContentSecurityPolicy()))

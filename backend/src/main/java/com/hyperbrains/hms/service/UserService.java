@@ -264,6 +264,12 @@ public class UserService {
                 }
                 user.setImageUrl(userDTO.getImageUrl());
                 user.setActivated(userDTO.isActivated());
+                // Switching an account off has to end the sessions that are already open, not just block the
+                // next sign-in: otherwise somebody who is still signed in keeps acting for as long as their
+                // token lives, which is the whole point of switching the account off.
+                if (wasActivated && !user.isActivated()) {
+                    user.setSessionsValidFrom(Instant.now());
+                }
                 user.setLangKey(userDTO.getLangKey());
                 Set<Authority> managedAuthorities = user.getAuthorities();
                 managedAuthorities.clear();

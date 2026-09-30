@@ -99,3 +99,4 @@ Phase 3 is not closed. Outstanding, in the order I would take them:
 - **S3.4** `PatientAccessLog`, **S3.5** the standard override mechanism (Administration, mandatory reason),
   **S3.7** the drug name/price snapshot on prescription and dispense lines, **S3.3** audit-action constants
   for the account events.
+but 
