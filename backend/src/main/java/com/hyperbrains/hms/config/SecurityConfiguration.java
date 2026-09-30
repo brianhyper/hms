@@ -229,8 +229,11 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/bills", "/api/bills/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- BillLineItem ----
+                    // Reads for the desk and Finance; every write Super Admin, like the bill and the payment. A
+                    // line is money, so the generated CRUD must not be able to raise a charge or change one, and
+                    // Finance raising charges by hand is precisely what the billing workflow exists to prevent.
                     .requestMatchers(HttpMethod.GET, "/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- Payment ----
                     .requestMatchers(HttpMethod.GET, "/api/payments", "/api/payments/**").hasAnyAuthority(RECEPTION, FINANCE, ADMIN, SUPER_ADMIN)

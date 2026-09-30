@@ -138,24 +138,16 @@ class BillLineItemResourceIT {
     @Transactional
     void createBillLineItem() throws Exception {
         long databaseSizeBeforeCreate = getRepositoryCount();
-        // Create the BillLineItem
+        // A charge is raised by the workflow that earns it, so the raw create route refuses rather than putting
+        // money on a bill with nothing behind it.
         BillLineItemDTO billLineItemDTO = billLineItemMapper.toDto(billLineItem);
-        var returnedBillLineItemDTO = om.readValue(
-            restBillLineItemMockMvc
-                .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(billLineItemDTO)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            BillLineItemDTO.class
-        );
+
+        restBillLineItemMockMvc
+            .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(billLineItemDTO)))
+            .andExpect(status().isConflict());
 
         // Validate the BillLineItem in the database
-        assertIncrementedRepositoryCount(databaseSizeBeforeCreate);
-        var returnedBillLineItem = billLineItemMapper.toEntity(returnedBillLineItemDTO);
-        assertBillLineItemUpdatableFieldsEquals(returnedBillLineItem, getPersistedBillLineItem(returnedBillLineItem));
-
-        insertedBillLineItem = returnedBillLineItem;
+        assertSameRepositoryCount(databaseSizeBeforeCreate);
     }
 
     @Test
@@ -289,11 +281,13 @@ class BillLineItemResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(billLineItemDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the BillLineItem in the database
+        // Validate the BillLineItem in the database: the money did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedBillLineItemToMatchAllProperties(updatedBillLineItem);
+        BillLineItem reloaded = billLineItemRepository.findById(billLineItem.getId()).orElseThrow();
+        assertThat(reloaded.getDescription()).isEqualTo(DEFAULT_DESCRIPTION);
+        assertThat(reloaded.getAmount()).isEqualByComparingTo(DEFAULT_AMOUNT);
     }
 
     @Test
@@ -378,15 +372,13 @@ class BillLineItemResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedBillLineItem))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the BillLineItem in the database
-
+        // Validate the BillLineItem in the database: a line is raised by a charge and reversed by a void.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertBillLineItemUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedBillLineItem, billLineItem),
-            getPersistedBillLineItem(billLineItem)
-        );
+        BillLineItem reloaded = billLineItemRepository.findById(billLineItem.getId()).orElseThrow();
+        assertThat(reloaded.getDescription()).isEqualTo(DEFAULT_DESCRIPTION);
+        assertThat(reloaded.getSourceType()).isEqualTo(DEFAULT_SOURCE_TYPE);
     }
 
     @Test
@@ -409,12 +401,14 @@ class BillLineItemResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedBillLineItem))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the BillLineItem in the database
-
+        // Validate the BillLineItem in the database: nothing about the line moved.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertBillLineItemUpdatableFieldsEquals(partialUpdatedBillLineItem, getPersistedBillLineItem(partialUpdatedBillLineItem));
+        BillLineItem reloaded = billLineItemRepository.findById(billLineItem.getId()).orElseThrow();
+        assertThat(reloaded.getDescription()).isEqualTo(DEFAULT_DESCRIPTION);
+        assertThat(reloaded.getAmount()).isEqualByComparingTo(DEFAULT_AMOUNT);
+        assertThat(reloaded.getSourceType()).isEqualTo(DEFAULT_SOURCE_TYPE);
     }
 
     @Test
@@ -487,13 +481,13 @@ class BillLineItemResourceIT {
 
         long databaseSizeBeforeDelete = getRepositoryCount();
 
-        // Delete the billLineItem
+        // A bill line is voided, not deleted, so the record of what was charged survives.
         restBillLineItemMockMvc
             .perform(delete(ENTITY_API_URL_ID, billLineItem.getId()).accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isConflict());
 
-        // Validate the database contains one less item
-        assertDecrementedRepositoryCount(databaseSizeBeforeDelete);
+        // Validate the line is still there
+        assertSameRepositoryCount(databaseSizeBeforeDelete);
     }
 
     protected long getRepositoryCount() {
