@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hyperbrains.hms.IntegrationTest;
 import com.hyperbrains.hms.config.Constants;
 import com.hyperbrains.hms.domain.User;
+import com.hyperbrains.hms.repository.AuditLogRepository;
 import com.hyperbrains.hms.repository.AuthorityRepository;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
@@ -55,6 +56,9 @@ class AccountResourceIT {
     private UserService userService;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -71,6 +75,24 @@ class AccountResourceIT {
     void cleanupAndCheck() {
         assertThat(userRepository.count()).isEqualTo(numberOfUsers);
         numberOfUsers = null;
+    }
+
+    /**
+     * Clears the audit trail of an account before removing it.
+     *
+     * <p>Account actions are audited from Phase 3 onwards, and the audit trail points at the account: the
+     * foreign key refuses to lose its actor, which is what stops the application from deleting an account that
+     * has a history. In the application the account is never removed, so this is only needed by a test that
+     * signs in as the account it creates and then removes it.
+     */
+    private void clearTheTrail(String login) {
+        userRepository
+            .findOneByLogin(login)
+            .ifPresent(user ->
+                auditLogRepository
+                    .findByEntityNameAndEntityIdOrderByIdAsc("User", String.valueOf(user.getId()))
+                    .forEach(auditLogRepository::delete)
+            );
     }
 
     @Test
@@ -113,6 +135,7 @@ class AccountResourceIT {
             .andExpect(jsonPath("$.langKey").value("en"))
             .andExpect(jsonPath("$.authorities").value(AuthoritiesConstants.ADMIN));
 
+        clearTheTrail(TEST_USER_LOGIN);
         userService.deleteUser(TEST_USER_LOGIN);
     }
 
@@ -577,6 +600,7 @@ class AccountResourceIT {
         User updatedUser = userRepository.findOneByLogin("change-password").orElse(null);
         assertThat(passwordEncoder.matches("new password", updatedUser.getPassword())).isTrue();
 
+        clearTheTrail("change-password");
         userService.deleteUser("change-password");
     }
 

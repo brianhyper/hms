@@ -4,6 +4,7 @@ import com.hyperbrains.hms.config.Constants;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
+import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.MailService;
 import com.hyperbrains.hms.service.UserService;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
@@ -198,13 +199,28 @@ public class UserResource {
      * @param login the login of the user to delete.
      * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
      */
+    /**
+     * {@code DELETE /admin/users/:login} : refuses, because an account is never deleted.
+     *
+     * <p>Phase 3 keeps accounts for good so that the audit trail and every historical owner still point at a
+     * person: an order, a dispense or a payment signed by a login that no longer exists is a record that cannot
+     * be followed up. Deactivation is the supported way to take access away — {@code PUT /api/admin/users} with
+     * {@code activated} false — and it leaves the account, and the trail, intact. The route stays so that it can
+     * say so: a 404 would leave the caller guessing whether it failed or was never there.
+     *
+     * @param login the login of the user that must not be deleted.
+     * @return nothing; the call is always refused.
+     */
     @DeleteMapping("/users/{login}")
     @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.SUPER_ADMIN + "\")")
     public ResponseEntity<Void> deleteUser(@PathVariable("login") @Pattern(regexp = Constants.LOGIN_REGEX) String login) {
         LOG.debug("REST request to delete User: {}", login);
-        userService.deleteUser(login);
-        return ResponseEntity.noContent()
-            .headers(HeaderUtil.createAlert(applicationName, "A user is deleted with identifier " + login, login))
-            .build();
+        throw BusinessRuleViolationException.of(
+            "userNotDeletable",
+            "user",
+            "Accounts are deactivated, never deleted, so that orders, payments and the audit trail still point at a person; deactivate " +
+            login +
+            " instead"
+        );
     }
 }

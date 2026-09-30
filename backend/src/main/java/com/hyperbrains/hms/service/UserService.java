@@ -9,6 +9,7 @@ import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.security.SecurityUtils;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
 import com.hyperbrains.hms.service.dto.UserDTO;
+import com.hyperbrains.hms.service.rules.AccountLifecycle;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -41,16 +42,20 @@ public class UserService {
 
     private final CacheManager cacheManager;
 
+    private final AuditLogService auditLogService;
+
     public UserService(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
         AuthorityRepository authorityRepository,
-        CacheManager cacheManager
+        CacheManager cacheManager,
+        AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
+        this.auditLogService = auditLogService;
     }
 
     public Optional<User> activateRegistration(String key) {
@@ -75,6 +80,11 @@ public class UserService {
                 user.setResetKey(null);
                 user.setResetDate(null);
                 this.clearUserCaches(user);
+                auditLogService.record(
+                    AuditLogService.Entry.of(AuditActions.PASSWORD_RESET_COMPLETED, "User", user.getId()).withDetails(
+                        "Password reset completed with a reset link for " + user.getLogin()
+                    )
+                );
                 return user;
             });
     }
@@ -87,6 +97,13 @@ public class UserService {
                 user.setResetKey(RandomUtil.generateResetKey());
                 user.setResetDate(Instant.now());
                 this.clearUserCaches(user);
+                // Recorded without an actor when nobody is signed in, which is the normal case here: knowing
+                // that a reset was asked for, and when, is what makes a suspicious one visible.
+                auditLogService.record(
+                    AuditLogService.Entry.of(AuditActions.PASSWORD_RESET_REQUESTED, "User", user.getId()).withDetails(
+                        "Password reset requested for " + user.getLogin()
+                    )
+                );
                 return user;
             });
     }
@@ -170,6 +187,10 @@ public class UserService {
         }
         userRepository.save(user);
         this.clearUserCaches(user);
+        auditLogService.record(
+            AuditLogService.Entry.of(AuditActions.USER_CREATED, "User", user.getId())
+                .withDetails("Account " + user.getLogin() + " created with roles " + String.join(",", sorted(authorityNames(user.getAuthorities()))))
+        );
         LOG.debug("Created Information for User: {}", user);
         return user;
     }
@@ -186,6 +207,55 @@ public class UserService {
             .map(Optional::get)
             .map(user -> {
                 this.clearUserCaches(user);
+
+                // Read what the account is before writing anything, because both checks below are about the
+                // change rather than the result, and both have to fail without leaving a half-applied edit
+                // behind for the rollback to clean up.
+                Set<String> authoritiesBefore = authorityNames(user.getAuthorities());
+                boolean heldTheRole = AccountLifecycle.managesAccounts(authoritiesBefore);
+                boolean wasActiveManager = user.isActivated() && heldTheRole;
+                boolean wasActivated = user.isActivated();
+                String targetLogin = user.getLogin();
+
+                Set<Authority> requestedAuthorities = requestedAuthorities(userDTO);
+                Set<String> authoritiesAfter = authorityNames(requestedAuthorities);
+                boolean stillHoldsTheRole = AccountLifecycle.managesAccounts(authoritiesAfter);
+                boolean staysActiveManager = userDTO.isActivated() && stillHoldsTheRole;
+
+                // The hospital must never be able to lock itself out: deactivating the last account that can
+                // manage accounts, or taking that role from it, has no way back because nobody would be left
+                // who could put it right.
+                if (
+                    AccountLifecycle.wouldLeaveTheSystemUnmanageable(
+                        wasActiveManager,
+                        staysActiveManager,
+                        userRepository.countOtherActiveUsersWithAuthority(AuthoritiesConstants.SUPER_ADMIN, user.getId())
+                    )
+                ) {
+                    throw BusinessRuleViolationException.of(
+                        "lastAccountManager",
+                        "user",
+                        "This is the only active account that can manage accounts, so this change would leave nobody able to undo it"
+                    );
+                }
+
+                // And an administrator cannot take their own role away: the moment it is gone, so is the
+                // ability to give it back, so it has to be another Super Admin who does it.
+                if (
+                    AccountLifecycle.isTakingTheirOwnRoleAway(
+                        SecurityUtils.getCurrentUserLogin().orElse(null),
+                        targetLogin,
+                        heldTheRole,
+                        stillHoldsTheRole
+                    )
+                ) {
+                    throw BusinessRuleViolationException.of(
+                        "ownSuperAdminRole",
+                        "user",
+                        "A Super Admin cannot take their own Super Admin role away; another Super Admin has to do it"
+                    );
+                }
+
                 user.setLogin(userDTO.getLogin().toLowerCase());
                 user.setFirstName(userDTO.getFirstName());
                 user.setLastName(userDTO.getLastName());
@@ -197,21 +267,73 @@ public class UserService {
                 user.setLangKey(userDTO.getLangKey());
                 Set<Authority> managedAuthorities = user.getAuthorities();
                 managedAuthorities.clear();
-                userDTO
-                    .getAuthorities()
-                    .stream()
-                    .map(authorityRepository::findById)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .forEach(managedAuthorities::add);
+                managedAuthorities.addAll(requestedAuthorities);
                 userRepository.save(user);
                 this.clearUserCaches(user);
+                auditAccountChange(user, wasActivated, authoritiesBefore, authoritiesAfter);
                 LOG.debug("Changed Information for User: {}", user);
                 return user;
             })
             .map(AdminUserDTO::new);
     }
 
+    /**
+     * Records what changed about an account, because the row only ever shows where it ended up.
+     *
+     * <p>Two entries at most, and only for things that actually changed: an entry saying "roles unchanged"
+     * every time somebody corrects a surname would bury the ones that matter.
+     */
+    private void auditAccountChange(User user, boolean wasActivated, Set<String> authoritiesBefore, Set<String> authoritiesAfter) {
+        if (!authoritiesBefore.equals(authoritiesAfter)) {
+            auditLogService.record(
+                AuditLogService.Entry.of(AuditActions.USER_ROLE_CHANGED, "User", user.getId())
+                    .withChange(String.join(",", sorted(authoritiesBefore)), String.join(",", sorted(authoritiesAfter)))
+                    .withDetails("Roles for " + user.getLogin() + " changed")
+            );
+        }
+        if (wasActivated != user.isActivated()) {
+            auditLogService.record(
+                AuditLogService.Entry.of(
+                    user.isActivated() ? AuditActions.USER_ACTIVATED : AuditActions.USER_DEACTIVATED,
+                    "User",
+                    user.getId()
+                )
+                    .withChange(String.valueOf(wasActivated), String.valueOf(user.isActivated()))
+                    .withDetails(user.getLogin() + (user.isActivated() ? " activated" : " deactivated"))
+            );
+        }
+    }
+
+    private Set<Authority> requestedAuthorities(AdminUserDTO userDTO) {
+        if (userDTO.getAuthorities() == null) {
+            return new HashSet<>();
+        }
+        return userDTO
+            .getAuthorities()
+            .stream()
+            .map(authorityRepository::findById)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toSet());
+    }
+
+    private static Set<String> authorityNames(Collection<Authority> authorities) {
+        return authorities.stream().map(Authority::getName).collect(Collectors.toSet());
+    }
+
+    /** Sorted so that an audit entry compares two role sets rather than two orderings of one. */
+    private static List<String> sorted(Set<String> names) {
+        return names.stream().sorted().toList();
+    }
+
+    /**
+     * Deletes an account outright.
+     *
+     * <p><strong>Not reachable from any route, and that is the point.</strong> Phase 3 requires that accounts
+     * are deactivated rather than deleted, so that the audit trail and every historical owner still point at
+     * a person. {@code UserResource} refuses the delete route and points at deactivation instead; this method
+     * remains only because test teardown uses it, and wiring it back to a route would reopen exactly the hole
+     * the phase closed.
+     */
     public void deleteUser(String login) {
         userRepository.findOneByLogin(login).ifPresent(user -> {
             userRepository.delete(user);
@@ -258,6 +380,11 @@ public class UserService {
                 String encryptedPassword = passwordEncoder.encode(newPassword);
                 user.setPassword(encryptedPassword);
                 this.clearUserCaches(user);
+                auditLogService.record(
+                    AuditLogService.Entry.of(AuditActions.PASSWORD_CHANGED, "User", user.getId()).withDetails(
+                        "Password changed by " + user.getLogin()
+                    )
+                );
                 LOG.debug("Changed password for User: {}", user);
             });
     }

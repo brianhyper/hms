@@ -470,15 +470,14 @@ class UserResourceIT {
         userRepository.saveAndFlush(user);
         int databaseSizeBeforeDelete = userRepository.findAll().size();
 
-        // Delete the user
+        // An account is never deleted: the route refuses and points at deactivation, so that orders, payments
+        // and the audit trail still point at a person.
         restUserMockMvc
             .perform(delete("/api/admin/users/{login}", user.getLogin()).accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isConflict());
 
-        assertThat(cacheManager.getCache(UserRepository.USERS_BY_LOGIN_CACHE).get(user.getLogin(), User.class)).isNull();
-
-        // Validate the database is empty
-        assertPersistedUsers(users -> assertThat(users).hasSize(databaseSizeBeforeDelete - 1));
+        // Validate the database is unchanged
+        assertPersistedUsers(users -> assertThat(users).hasSize(databaseSizeBeforeDelete));
     }
 
     @Test

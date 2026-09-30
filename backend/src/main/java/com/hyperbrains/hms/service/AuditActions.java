@@ -82,5 +82,24 @@ public final class AuditActions {
     /** A prescriber stopped a course that was still running. */
     public static final String ORDER_COMPLETED = "ORDER_COMPLETED";
 
+    // -----------------------------------------------------------------------------
+    // Accounts and roles (phase 3)
+    // -----------------------------------------------------------------------------
+
+    /**
+     * Account and role changes are auditable because they decide who may do everything else.
+     *
+     * <p>A role change records the previous and the new authorities in {@code oldValue}/{@code newValue}:
+     * "who could do what, and from when" is the question an audit trail is asked about an account, and the
+     * answer is not in the current state of the row.
+     */
+    public static final String USER_CREATED = "USER_CREATED";
+    public static final String USER_ACTIVATED = "USER_ACTIVATED";
+    public static final String USER_DEACTIVATED = "USER_DEACTIVATED";
+    public static final String USER_ROLE_CHANGED = "USER_ROLE_CHANGED";
+    public static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";
+    public static final String PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED";
+    public static final String PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED";
+
     private AuditActions() {}
 }
