@@ -50,6 +50,11 @@ public final class WorkflowOwnedFields {
      * <p>Two cases are deliberately not {@link Objects#equals}. A null on a PATCH means "leave it alone"
      * rather than "clear it". And a rate is the same rate whatever the scale says, so {@code 8000.0} and
      * {@code 8000.00} changing by name alone would refuse an edit that changed nothing.
+     *
+     * <p>A reference to another row is compared as it is, by identity. Comparing two references by id instead
+     * was tried and reverted: reading an id off a Hibernate-backed reference threw, and a guard that throws is
+     * worse than a guard that is overly cautious, because the cautious direction here refuses an edit rather
+     * than allowing one.
      */
     private static boolean differs(Object requested, Object stored, boolean nullMeansUnchanged) {
         if (requested == null && nullMeansUnchanged) {
