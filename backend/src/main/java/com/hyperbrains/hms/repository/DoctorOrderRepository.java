@@ -14,6 +14,24 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface DoctorOrderRepository extends JpaRepository<DoctorOrder, Long> {
+    /**
+     * This stay's orders, newest first, with the people and the linked prescription already read.
+     *
+     * <p>Newest first because that is how a ward sheet is read: what was written this morning matters more than
+     * what was written on the day of admission. Ordered by time and then by id so two orders written in the
+     * same instant cannot come back in an order the database chose.
+     */
+    @Query(
+        """
+        select orders from DoctorOrder orders
+        join fetch orders.orderedBy
+        left join fetch orders.cancelledBy
+        left join fetch orders.prescription
+        where orders.admission.id = :admissionId
+        order by orders.orderedAt desc, orders.id desc
+        """
+    )
+    List<DoctorOrder> findSheet(@Param("admissionId") Long admissionId);
     @Query("select doctorOrder from DoctorOrder doctorOrder where doctorOrder.orderedBy.login = ?#{authentication.name}")
     List<DoctorOrder> findByOrderedByIsCurrentUser();
 

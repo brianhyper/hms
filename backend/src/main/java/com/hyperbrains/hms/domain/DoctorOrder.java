@@ -89,6 +89,19 @@ public class DoctorOrder implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     private User cancelledBy;
 
+    /**
+     * The prescription that backs this order, when it is a DRUG order.
+     *
+     * <p>§6 of the Phase 2 specification is explicit that a doctor order must not become a second way to
+     * order a drug: two paths to the same medicine is how a patient is supplied twice or charged twice. So
+     * the order is the clinical instruction — what a nurse executes — and the medicine itself is a
+     * {@code Prescription}, which is where stock reservation, the pharmacy queue and the charge already live.
+     * Placing a DRUG order therefore places the prescription and links it here, and there is no way to have
+     * one without the other.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Prescription prescription;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
@@ -257,6 +270,19 @@ public class DoctorOrder implements Serializable {
 
     public DoctorOrder cancelledBy(User user) {
         this.setCancelledBy(user);
+        return this;
+    }
+
+    public Prescription getPrescription() {
+        return this.prescription;
+    }
+
+    public void setPrescription(Prescription prescription) {
+        this.prescription = prescription;
+    }
+
+    public DoctorOrder prescription(Prescription prescription) {
+        this.setPrescription(prescription);
         return this;
     }
 

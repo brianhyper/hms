@@ -18,6 +18,7 @@ import com.hyperbrains.hms.domain.enumeration.DoctorOrderStatus;
 import com.hyperbrains.hms.domain.enumeration.DoctorOrderType;
 import com.hyperbrains.hms.repository.DoctorOrderRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.DoctorOrderService;
 import com.hyperbrains.hms.service.dto.DoctorOrderDTO;
 import com.hyperbrains.hms.service.mapper.DoctorOrderMapper;
@@ -47,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class DoctorOrderResourceIT {
 
     private static final Instant DEFAULT_ORDERED_AT = Instant.ofEpochMilli(0L);

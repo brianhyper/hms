@@ -15,6 +15,7 @@ import com.hyperbrains.hms.domain.OrderExecution;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.OrderExecutionRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.OrderExecutionService;
 import com.hyperbrains.hms.service.dto.OrderExecutionDTO;
 import com.hyperbrains.hms.service.mapper.OrderExecutionMapper;
@@ -44,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class OrderExecutionResourceIT {
 
     private static final Instant DEFAULT_EXECUTED_AT = Instant.ofEpochMilli(0L);
