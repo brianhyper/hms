@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Random;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class PaymentPlanResourceIT {
 
     private static final BigDecimal DEFAULT_TOTAL_OWED = new BigDecimal(0);

@@ -327,6 +327,14 @@ public class SecurityConfiguration {
                     // visit and releases medicine to the pharmacy, so it must not be widened.
                     .requestMatchers(HttpMethod.POST, "/api/visit-payments/*/pay").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
 
+                    // ---- Payment plans (phase 2) ----
+                    // An arrangement to pay a bill over time is a decision about money, so Finance and the
+                    // administrators read it and nobody else does. The generated CRUD writes are Super Admin
+                    // only until slice 7 builds the agreement itself, exactly like every other raw table here:
+                    // a plan written by hand would be a promise the running bill knows nothing about.
+                    .requestMatchers(HttpMethod.GET, "/api/payment-plans", "/api/payment-plans/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/payment-plans", "/api/payment-plans/**").hasAnyAuthority(SUPER_ADMIN)
+
                     // ---- Dispensing workflow ----
                     // The last step of the guarantee: only a settled prescription reaches here, so this
                     // route cannot be used to hand medicine over for free. Pharmacy owns it, and only

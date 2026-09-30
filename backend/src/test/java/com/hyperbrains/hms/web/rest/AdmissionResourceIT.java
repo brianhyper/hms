@@ -183,24 +183,16 @@ class AdmissionResourceIT {
     @Transactional
     void createAdmission() throws Exception {
         long databaseSizeBeforeCreate = getRepositoryCount();
-        // Create the Admission
+        // A stay is opened by the admit action, not by a row, so the raw create route refuses rather than
+        // writing a stay that never went through the ward.
         AdmissionDTO admissionDTO = admissionMapper.toDto(admission);
-        var returnedAdmissionDTO = om.readValue(
-            restAdmissionMockMvc
-                .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(admissionDTO)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            AdmissionDTO.class
-        );
+
+        restAdmissionMockMvc
+            .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(admissionDTO)))
+            .andExpect(status().isConflict());
 
         // Validate the Admission in the database
-        assertIncrementedRepositoryCount(databaseSizeBeforeCreate);
-        var returnedAdmission = admissionMapper.toEntity(returnedAdmissionDTO);
-        assertAdmissionUpdatableFieldsEquals(returnedAdmission, getPersistedAdmission(returnedAdmission));
-
-        insertedAdmission = returnedAdmission;
+        assertSameRepositoryCount(databaseSizeBeforeCreate);
     }
 
     @Test
@@ -360,11 +352,11 @@ class AdmissionResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(admissionDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Admission in the database
+        // Validate the Admission in the database: it did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedAdmissionToMatchAllProperties(updatedAdmission);
+        assertThat(admissionRepository.findById(admission.getId()).orElseThrow().getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
@@ -449,15 +441,38 @@ class AdmissionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedAdmission))
             )
+            .andExpect(status().isConflict());
+
+        // Validate the Admission in the database: the status belongs to the ward's own actions.
+        assertSameRepositoryCount(databaseSizeBeforeUpdate);
+        assertThat(admissionRepository.findById(admission.getId()).orElseThrow().getStatus()).isEqualTo(DEFAULT_STATUS);
+    }
+
+    @Test
+    @Transactional
+    void theAdmissionReasonCanStillBeCorrectedByHand() throws Exception {
+        // Initialize the database
+        insertedAdmission = admissionRepository.saveAndFlush(admission);
+
+        long databaseSizeBeforeUpdate = getRepositoryCount();
+
+        // Only free text is changing, which no workflow owns.
+        Admission correction = new Admission();
+        correction.setId(admission.getId());
+        correction.setAdmissionReason("Reason corrected from the notes");
+
+        restAdmissionMockMvc
+            .perform(
+                patch(ENTITY_API_URL_ID, correction.getId())
+                    .contentType("application/merge-patch+json")
+                    .content(om.writeValueAsBytes(correction))
+            )
             .andExpect(status().isOk());
 
-        // Validate the Admission in the database
-
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertAdmissionUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedAdmission, admission),
-            getPersistedAdmission(admission)
-        );
+        Admission reloaded = admissionRepository.findById(admission.getId()).orElseThrow();
+        assertThat(reloaded.getAdmissionReason()).isEqualTo("Reason corrected from the notes");
+        assertThat(reloaded.getStatus()).as("and nothing about the stay itself moved").isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
@@ -485,12 +500,11 @@ class AdmissionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedAdmission))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Admission in the database
-
+        // Validate the Admission in the database: nothing about the stay moved.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertAdmissionUpdatableFieldsEquals(partialUpdatedAdmission, getPersistedAdmission(partialUpdatedAdmission));
+        assertThat(admissionRepository.findById(admission.getId()).orElseThrow().getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
