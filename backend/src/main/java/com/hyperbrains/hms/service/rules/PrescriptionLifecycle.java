@@ -55,6 +55,39 @@ public final class PrescriptionLifecycle {
     }
 
     /**
+     * The status a prescription starts in when the patient is an inpatient.
+     *
+     * <p>Straight to {@code READY_FOR_DISPENSE}: the ward may collect the medicine without anybody paying
+     * first. A patient in a bed is not standing at a cash desk, the hospital has already accepted the debt for
+     * the stay, and holding the dose behind a payment window is how a charted antibiotic gets missed.
+     *
+     * <p>This does not make the medicine free. The charge is still raised against the stay's bill at
+     * placement, and that bill is settled on the inpatient path — so the money is tracked exactly as before,
+     * and only the <em>gate in front of the medicine</em> is removed. The guarantee Phase 1 built the status
+     * cycle for — pharmacy hands medicine over without having to inspect the Visit or the Bill — is kept: the
+     * status still says what may be collected, it is just reached a different way for an inpatient.
+     */
+    public static PrescriptionStatus initialStatusForInpatient() {
+        return PrescriptionStatus.READY_FOR_DISPENSE;
+    }
+
+    /**
+     * Whether an inpatient prescription may be withdrawn even though its charge is unpaid.
+     *
+     * <p>An inpatient prescription reaches {@code READY_FOR_DISPENSE} without any money having changed hands,
+     * so {@link #isCancellable} — which asks "has this been paid for" — answers no for the wrong reason. The
+     * question that matters for the ward is whether anything has been handed over yet: nothing has while the
+     * status is still {@code READY_FOR_DISPENSE}, and the medicine is only ever on the stay's tab.
+     *
+     * <p>Deliberately narrow. It does not relax the outpatient rule, and it does not extend to
+     * {@code PARTIALLY_DISPENSED}: once some of the medicine is in the patient, withdrawing the rest is a
+     * clinical and financial decision that belongs to a person, not to a status.
+     */
+    public static boolean isCancellableOnUnpaidCredit(PrescriptionStatus status) {
+        return status == PrescriptionStatus.READY_FOR_DISPENSE;
+    }
+
+    /**
      * The visit has reached the payment stage, so this prescription is now part of what is owed.
      *
      * <p>Idempotent: called whenever the visit lands on the payment stage, which can happen more than

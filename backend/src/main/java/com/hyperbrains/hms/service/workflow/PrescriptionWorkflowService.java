@@ -30,6 +30,26 @@ public interface PrescriptionWorkflowService {
      */
     PrescriptionViewDTO place(Long visitId, PlacePrescriptionRequestDTO request);
 
+    /**
+     * Write a prescription for an inpatient, against the visit their stay belongs to.
+     *
+     * <p>The same act as {@link #place} with one difference that matters: an admitted visit is a legal
+     * target. Phase 1 refuses every clinical write against one, on the grounds that ADMITTED has left the
+     * outpatient path — but a patient in the building for a week is exactly the patient whose medicine still
+     * needs recording, and §6 of the Phase 2 specification calls this seam out as one Phase 2 has to open per
+     * workflow rather than by relaxing the guard everywhere.
+     *
+     * <p>What it deliberately does not do is move the visit's status. An admitted visit is governed by the
+     * stay; the outpatient status machine knows nothing about it.
+     *
+     * <p>Reserving stock, charging and the audit entry are identical to the outpatient path, because they are
+     * the same guarantee: medicine is set aside when it is prescribed, and the bill says so.
+     *
+     * @throws com.hyperbrains.hms.service.BusinessRuleViolationException if there is no such visit, the visit
+     *         has no open stay, a drug is missing or withdrawn, or any line is short of availability
+     */
+    PrescriptionViewDTO placeForInpatient(Long visitId, PlacePrescriptionRequestDTO request);
+
     /** Everything prescribed during a visit, for the treating clinician. */
     List<PrescriptionViewDTO> forVisit(Long visitId);
 

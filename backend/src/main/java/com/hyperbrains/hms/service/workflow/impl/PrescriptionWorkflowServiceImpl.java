@@ -10,6 +10,7 @@ import com.hyperbrains.hms.domain.enumeration.BillLineSourceType;
 import com.hyperbrains.hms.domain.enumeration.PrescriptionSource;
 import com.hyperbrains.hms.domain.enumeration.PrescriptionStatus;
 import com.hyperbrains.hms.domain.enumeration.VisitStatus;
+import com.hyperbrains.hms.repository.AdmissionRepository;
 import com.hyperbrains.hms.repository.PrescriptionLineRepository;
 import com.hyperbrains.hms.repository.PrescriptionRepository;
 import com.hyperbrains.hms.repository.UserRepository;
@@ -23,6 +24,7 @@ import com.hyperbrains.hms.service.dto.view.PlacePrescriptionRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionBillableDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionLineRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionViewDTO;
+import com.hyperbrains.hms.service.rules.AdmissionLifecycle;
 import com.hyperbrains.hms.service.rules.PrescriptionLifecycle;
 import com.hyperbrains.hms.service.rules.VisitLifecycle;
 import com.hyperbrains.hms.service.workflow.BillingService;
@@ -51,6 +53,8 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
 
     private final VisitRepository visitRepository;
 
+    private final AdmissionRepository admissionRepository;
+
     private final PrescriptionRepository prescriptionRepository;
 
     private final PrescriptionLineRepository prescriptionLineRepository;
@@ -67,6 +71,7 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
 
     public PrescriptionWorkflowServiceImpl(
         VisitRepository visitRepository,
+        AdmissionRepository admissionRepository,
         PrescriptionRepository prescriptionRepository,
         PrescriptionLineRepository prescriptionLineRepository,
         UserRepository userRepository,
@@ -76,6 +81,7 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
         AuditLogService auditLogService
     ) {
         this.visitRepository = visitRepository;
+        this.admissionRepository = admissionRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.prescriptionLineRepository = prescriptionLineRepository;
         this.userRepository = userRepository;
@@ -87,8 +93,15 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
 
     @Override
     public PrescriptionViewDTO place(Long visitId, PlacePrescriptionRequestDTO request) {
-        Visit visit = loadOpenVisit(visitId);
+        return place(loadOpenVisit(visitId), request, false);
+    }
 
+    @Override
+    public PrescriptionViewDTO placeForInpatient(Long visitId, PlacePrescriptionRequestDTO request) {
+        return place(loadVisitWithAnOpenStay(visitId), request, true);
+    }
+
+    private PrescriptionViewDTO place(Visit visit, PlacePrescriptionRequestDTO request, boolean inpatient) {
         // Re-checked here as well as on the DTO. Bean validation only runs when the request comes in
         // over HTTP, and this is the method that decides whether medicine gets set aside, so it must
         // not depend on having been called from a controller.
@@ -121,7 +134,11 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
         prescription.setDoctor(doctor);
         prescription.setSource(request.getSource());
         prescription.setPrescribingSource(request.getPrescribingSource());
-        prescription.setStatus(PrescriptionLifecycle.initialStatus(visit.getStatus() == VisitStatus.WAITING_PAYMENT));
+        prescription.setStatus(
+            inpatient
+                ? PrescriptionLifecycle.initialStatusForInpatient()
+                : PrescriptionLifecycle.initialStatus(visit.getStatus() == VisitStatus.WAITING_PAYMENT)
+        );
         prescription.setCreatedAt(Instant.now());
         prescription = prescriptionRepository.save(prescription);
 
@@ -146,7 +163,11 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
             )
         );
 
-        visitStatusService.onPrescriptionPlaced(visit.getId());
+        if (!inpatient) {
+            // The outpatient status machine only. An admitted visit is parked off that path deliberately, and
+            // pushing it from here would send a patient in a bed back into a waiting room.
+            visitStatusService.onPrescriptionPlaced(visit.getId());
+        }
 
         LOG.debug("Prescription {} placed on visit {} with {} line(s)", prescription.getId(), visit.getId(), lines.size());
         return PrescriptionViewDTO.from(prescription, lines);
@@ -165,7 +186,16 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
         }
 
         Prescription prescription = loadPrescription(prescriptionId);
-        if (!PrescriptionLifecycle.isCancellable(prescription.getStatus())) {
+
+        // An inpatient prescription is dispensable from the moment it is written, because the ward collects
+        // medicine without paying at a desk. Nothing has been handed over while it is still READY_FOR_DISPENSE,
+        // and nothing has been paid for it either, so withdrawing it is the same act as it is at the outpatient
+        // desk — the medicine goes back on the shelf and off the stay's bill.
+        boolean onUnpaidCredit =
+            PrescriptionLifecycle.isCancellableOnUnpaidCredit(prescription.getStatus()) &&
+            hasOpenStay(prescription.getVisit());
+
+        if (!PrescriptionLifecycle.isCancellable(prescription.getStatus()) && !onUnpaidCredit) {
             throw BusinessRuleViolationException.of(
                 "prescriptionNotCancellable",
                 "prescription",
@@ -200,7 +230,10 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
                 .withDetails(lines.size() + " line(s) released from stock and voided from the bill")
         );
 
-        if (visit != null) {
+        if (visit != null && !onUnpaidCredit) {
+            // The outpatient status machine only, for the same reason placement skips it: an admitted visit is
+            // governed by the stay, and recomputing its status from outpatient work would send a patient in a
+            // bed back into a waiting room.
             visitStatusService.onPrescriptionWithdrawn(visit.getId());
         }
 
@@ -333,6 +366,43 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
                 "Visit " + visitId + " is " + visit.getStatus() + " and no longer accepts clinical work"
             );
         }
+        return visit;
+    }
+
+    /** Whether this visit is a stay still in progress, which is what makes the ward's credit apply. */
+    private boolean hasOpenStay(Visit visit) {
+        if (visit == null || visit.getId() == null) {
+            return false;
+        }
+        return admissionRepository
+            .findByVisitId(visit.getId())
+            .map(admission -> AdmissionLifecycle.isOpen(admission.getStatus()))
+            .orElse(false);
+    }
+
+    /**
+     * The visit a prescription may be written against when the patient is an inpatient: one whose stay is
+     * still open.
+     *
+     * <p>The guard is the Admission, not the visit status. {@code VisitStatus.ADMITTED} means the encounter
+     * has left the outpatient path, which is exactly why {@link #loadOpenVisit} refuses it — so asking the
+     * visit whether it accepts clinical work would refuse every inpatient. The stay is what says whether the
+     * patient is still in the building.
+     */
+    private Visit loadVisitWithAnOpenStay(Long visitId) {
+        Visit visit = visitRepository
+            .findById(visitId)
+            .orElseThrow(() -> BusinessRuleViolationException.of("visitNotFound", "visit", "No visit with id " + visitId));
+        admissionRepository
+            .findByVisitId(visitId)
+            .filter(admission -> AdmissionLifecycle.isOpen(admission.getStatus()))
+            .orElseThrow(() ->
+                BusinessRuleViolationException.of(
+                    "stayNotOpen",
+                    "visit",
+                    "Visit " + visitId + " has no stay in progress, so it is not being prescribed for as an inpatient"
+                )
+            );
         return visit;
     }
 

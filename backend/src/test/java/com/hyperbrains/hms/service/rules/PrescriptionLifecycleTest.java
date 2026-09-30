@@ -29,6 +29,32 @@ class PrescriptionLifecycleTest {
         assertThat(PrescriptionLifecycle.initialStatus(true)).isEqualTo(PrescriptionStatus.PENDING_PAYMENT);
     }
 
+    /**
+     * The client's decision for inpatients: the ward collects medicine without anybody paying first, because a
+     * patient in a bed is not standing at a cash desk and the hospital has already accepted the debt for the
+     * stay. The charge is still raised against the stay's bill — only the gate in front of the medicine goes.
+     */
+    @Test
+    void inpatientMedicineIsCollectableWithoutPayment() {
+        PrescriptionStatus inpatient = PrescriptionLifecycle.initialStatusForInpatient();
+
+        assertThat(inpatient).isEqualTo(PrescriptionStatus.READY_FOR_DISPENSE);
+        assertThat(PrescriptionLifecycle.isDispensable(inpatient)).as("pharmacy may hand it over").isTrue();
+        assertThat(PrescriptionLifecycle.isCancellable(inpatient)).as("not by the payment rule").isFalse();
+        assertThat(PrescriptionLifecycle.isCancellableOnUnpaidCredit(inpatient))
+            .as("nothing has been handed over, so it can still be withdrawn")
+            .isTrue();
+    }
+
+    /** The credit allowance stays narrow: once some medicine is in the patient, it is somebody's decision. */
+    @Test
+    void unpaidCreditOnlyAllowsWithdrawingWhatIsStillOnTheShelf() {
+        assertThat(PrescriptionLifecycle.isCancellableOnUnpaidCredit(PrescriptionStatus.READY_FOR_DISPENSE)).isTrue();
+        assertThat(PrescriptionLifecycle.isCancellableOnUnpaidCredit(PrescriptionStatus.PARTIALLY_DISPENSED)).isFalse();
+        assertThat(PrescriptionLifecycle.isCancellableOnUnpaidCredit(PrescriptionStatus.DISPENSED)).isFalse();
+        assertThat(PrescriptionLifecycle.isCancellableOnUnpaidCredit(PrescriptionStatus.CANCELLED)).isFalse();
+    }
+
     @Test
     void reachingThePaymentStagePromotesAPendingPrescriptionExactlyOnce() {
         assertThat(PrescriptionLifecycle.promote(PrescriptionStatus.PENDING)).isEqualTo(PrescriptionStatus.PENDING_PAYMENT);
