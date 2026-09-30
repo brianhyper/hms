@@ -80,6 +80,11 @@ public class SecurityConfiguration {
                     // even though it runs the hospital's day-to-day operations.
                     // ===============================================================
                     .requestMatchers("/api/admin/**").hasAuthority(SUPER_ADMIN)
+                    // The role list is what roles are handed out from, so it is system administration's. It is
+                    // each method annotated as well, and this row is here because an annotation is a rule that
+                    // only the method knows: the table is supposed to be the one place that says who may reach
+                    // what, and a route with no row is a route the table cannot answer for.
+                    .requestMatchers("/api/authorities", "/api/authorities/**").hasAuthority(SUPER_ADMIN)
                     .requestMatchers("/v3/api-docs/**").hasAuthority(ADMIN)
                     .requestMatchers("/management/health").permitAll()
                     .requestMatchers("/management/health/**").permitAll()
@@ -234,6 +239,16 @@ public class SecurityConfiguration {
                     // Finance raising charges by hand is precisely what the billing workflow exists to prevent.
                     .requestMatchers(HttpMethod.GET, "/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
                     .requestMatchers("/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    // ---- AdHocCharge ----
+                    // An extra charge is money on a patient's bill, and until the charge has a workflow of its
+                    // own the generated CRUD was the only way to write one - which meant every signed-in account
+                    // could write it, because there was no row here at all and the catch-all let them through.
+                    // Reads for Finance; writes Super Admin, like the bill it lands on. A charge that needs a
+                    // reason and an authorisation will get its own workflow, and this row is what makes that a
+                    // deliberate change rather than something nobody noticed.
+                    .requestMatchers(HttpMethod.GET, "/api/ad-hoc-charges", "/api/ad-hoc-charges/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/ad-hoc-charges", "/api/ad-hoc-charges/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- Payment ----
                     .requestMatchers(HttpMethod.GET, "/api/payments", "/api/payments/**").hasAnyAuthority(RECEPTION, FINANCE, ADMIN, SUPER_ADMIN)

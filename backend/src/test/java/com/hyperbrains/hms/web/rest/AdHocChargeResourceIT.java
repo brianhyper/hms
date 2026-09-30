@@ -16,6 +16,7 @@ import com.hyperbrains.hms.domain.Admission;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.AdHocChargeRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.AdHocChargeService;
 import com.hyperbrains.hms.service.dto.AdHocChargeDTO;
 import com.hyperbrains.hms.service.mapper.AdHocChargeMapper;
@@ -46,7 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class AdHocChargeResourceIT {
 
     private static final String DEFAULT_DESCRIPTION = "AAAAAAAAAA";
