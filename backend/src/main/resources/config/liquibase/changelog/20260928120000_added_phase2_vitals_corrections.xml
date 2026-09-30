@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Supersession on the inpatient chart.
+
+        A charted observation that turns out to be wrong is not edited and not deleted: a correcting row is
+        added that points at the row it replaces, so both stay on the chart and the correction says which
+        figure is in force. Without the link the chart merely accumulates two contradictory rows and leaves
+        the reader to decide which one to believe, which is the one thing a clinical record must not do.
+
+        A self-referencing foreign key. The column is nullable because most rows are ordinary observations
+        that replace nothing, and there is deliberately no ON DELETE rule: nothing in the application
+        deletes a charted observation, and a cascade here would be a way to lose one by accident.
+
+        Not expressible in the JDL that generated this entity, and it is an ALTER on an already-released
+        table, so it lives here with the other hand-written changes rather than in a regenerated changelog.
+    -->
+    <changeSet id="20260928120000-1" author="hms">
+        <comment>Link a correcting observation to the one it supersedes, and record why.</comment>
+        <addColumn tableName="inpatient_vitals">
+            <column name="correction_reason" type="varchar(10000)"/>
+        </addColumn>
+        <addColumn tableName="inpatient_vitals">
+            <column name="corrects_id" type="bigint"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260928120000-2" author="hms">
+        <comment>Index the supersession link: "what replaced this row" is asked per row on the chart.</comment>
+        <createIndex indexName="idx_inpatient_vitals__corrects_id" tableName="inpatient_vitals">
+            <column name="corrects_id"/>
+        </createIndex>
+        <addForeignKeyConstraint
+            baseColumnNames="corrects_id"
+            baseTableName="inpatient_vitals"
+            constraintName="fk_inpatient_vitals__corrects_id"
+            referencedColumnNames="id"
+            referencedTableName="inpatient_vitals"/>
+    </changeSet>
+</databaseChangeLog>

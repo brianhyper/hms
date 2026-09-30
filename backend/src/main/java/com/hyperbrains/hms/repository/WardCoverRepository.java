@@ -14,6 +14,24 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface WardCoverRepository extends JpaRepository<WardCover, Long> {
+    /**
+     * This doctor's roster, with the ward and both users already read.
+     *
+     * <p>Used to answer "which wards is this doctor covering right now", so it deliberately returns the
+     * periods rather than a filtered set: the window comparison is done by {@code WardCoverage}, in one
+     * place, rather than here in JPQL where it would be a second copy of the same rule.
+     */
+    @Query(
+        "select cover from WardCover cover join fetch cover.doctor join fetch cover.ward join fetch cover.assignedBy where cover.doctor.id = :doctorId order by cover.coversFrom desc, cover.id desc"
+    )
+    List<WardCover> findByDoctorIdWithWard(@Param("doctorId") Long doctorId);
+
+    /** The whole roster, ward by ward, for the screen that manages it. */
+    @Query(
+        "select cover from WardCover cover join fetch cover.doctor join fetch cover.ward join fetch cover.assignedBy order by cover.ward.name asc, cover.coversFrom desc, cover.id desc"
+    )
+    List<WardCover> findAllWithWard();
+
     @Query("select wardCover from WardCover wardCover where wardCover.doctor.login = ?#{authentication.name}")
     List<WardCover> findByDoctorIsCurrentUser();
 

@@ -73,5 +73,14 @@ public final class AuditActions {
     /** A patient was moved from one bed to another, with a reason. */
     public static final String WARD_TRANSFERRED = "WARD_TRANSFERRED";
 
+    /** A doctor was put on duty for a ward, or taken off it. */
+    public static final String WARD_COVER_CHANGED = "WARD_COVER_CHANGED";
+
+    /** A nurse recorded carrying out a doctor's order on the ward. */
+    public static final String ORDER_EXECUTED = "ORDER_EXECUTED";
+
+    /** A prescriber stopped a course that was still running. */
+    public static final String ORDER_COMPLETED = "ORDER_COMPLETED";
+
     private AuditActions() {}
 }

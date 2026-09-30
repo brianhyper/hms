@@ -136,6 +136,19 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
                 .build();
         }
 
+        if (ex instanceof org.springframework.dao.OptimisticLockingFailureException) {
+            // Somebody else changed the row between this request reading it and writing it. Not a server
+            // fault and not the caller's mistake: the request was fine, the world moved underneath it. The
+            // alternative is the 500 that an unmapped Spring Data exception produces, which tells the person
+            // at the desk nothing and loses the fact that a retry would work.
+            return ProblemDetailWithCauseBuilder.instance()
+                .withStatus(HttpStatus.CONFLICT.value())
+                .withType(ErrorConstants.DEFAULT_TYPE)
+                .withProperty("message", "error.recordChangedConcurrently")
+                .withProperty("params", "concurrent")
+                .build();
+        }
+
         if (
             ex instanceof ErrorResponseException exp && exp.getBody() instanceof ProblemDetailWithCause problemDetailWithCause
         ) return problemDetailWithCause;

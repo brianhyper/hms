@@ -74,6 +74,21 @@ public class InpatientVitals implements Serializable {
     @NotNull
     private User recordedBy;
 
+    /**
+     * The observation this row replaces, when this row is a correction.
+     *
+     * <p>A wrong entry is never overwritten. The corrected row is added and points at what it replaces, so
+     * both stay on the chart and a reader can tell which figure is in force without comparing timestamps
+     * and guessing. Nothing is ever deleted from a clinical record; a correction only adds.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    private InpatientVitals corrects;
+
+    /** Why the earlier observation was replaced. Required on a correction, absent otherwise. */
+    @Size(max = 10000)
+    @Column(name = "correction_reason", length = 10000)
+    private String correctionReason;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
@@ -242,6 +257,32 @@ public class InpatientVitals implements Serializable {
 
     public InpatientVitals recordedBy(User user) {
         this.setRecordedBy(user);
+        return this;
+    }
+
+    public InpatientVitals getCorrects() {
+        return this.corrects;
+    }
+
+    public void setCorrects(InpatientVitals inpatientVitals) {
+        this.corrects = inpatientVitals;
+    }
+
+    public InpatientVitals corrects(InpatientVitals inpatientVitals) {
+        this.setCorrects(inpatientVitals);
+        return this;
+    }
+
+    public String getCorrectionReason() {
+        return this.correctionReason;
+    }
+
+    public void setCorrectionReason(String correctionReason) {
+        this.correctionReason = correctionReason;
+    }
+
+    public InpatientVitals correctionReason(String correctionReason) {
+        this.setCorrectionReason(correctionReason);
         return this;
     }
 

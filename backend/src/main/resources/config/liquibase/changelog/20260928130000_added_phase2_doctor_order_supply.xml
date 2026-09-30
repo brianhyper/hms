@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        The supply record behind a drug order.
+
+        §6 of the Phase 2 specification forbids a DRUG doctor order that carries its own drugs: Phase 1 already
+        has Prescription + PrescriptionLine with stock reservation, the pharmacy queue and the charge, and two
+        ways to order the same medicine is how a patient gets supplied twice or billed twice. So a DRUG order
+        is backed by a real Prescription, and this column is the link that makes "backed by" checkable rather
+        than a matter of convention.
+
+        Nullable, because most orders are not drug orders: a lab request or a ward instruction backs nothing.
+        The foreign key is RESTRICT, deliberately — deleting a prescription that an order points at would leave
+        a nurse executing an instruction for medicine that no longer exists.
+    -->
+    <changeSet id="20260928130000-1" author="hms">
+        <comment>Link a drug order to the prescription that supplies it.</comment>
+        <addColumn tableName="doctor_order">
+            <column name="prescription_id" type="bigint"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260928130000-2" author="hms">
+        <comment>Index the link, so "is this order backed" and "what order raised this" are both a lookup.</comment>
+        <createIndex indexName="idx_doctor_order__prescription_id" tableName="doctor_order">
+            <column name="prescription_id"/>
+        </createIndex>
+        <addForeignKeyConstraint
+            baseColumnNames="prescription_id"
+            baseTableName="doctor_order"
+            constraintName="fk_doctor_order__prescription_id"
+            referencedColumnNames="id"
+            referencedTableName="prescription"/>
+    </changeSet>
+</databaseChangeLog>

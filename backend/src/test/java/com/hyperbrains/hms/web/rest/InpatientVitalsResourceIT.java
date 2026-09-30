@@ -16,6 +16,7 @@ import com.hyperbrains.hms.domain.InpatientVitals;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.InpatientVitalsRepository;
 import com.hyperbrains.hms.repository.UserRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.InpatientVitalsService;
 import com.hyperbrains.hms.service.dto.InpatientVitalsDTO;
 import com.hyperbrains.hms.service.mapper.InpatientVitalsMapper;
@@ -46,7 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class InpatientVitalsResourceIT {
 
     private static final Instant DEFAULT_RECORDED_AT = Instant.ofEpochMilli(0L);

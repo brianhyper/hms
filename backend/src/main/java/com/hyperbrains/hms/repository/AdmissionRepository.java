@@ -2,6 +2,7 @@ package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.Admission;
 import com.hyperbrains.hms.domain.enumeration.AdmissionStatus;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -31,6 +32,77 @@ public interface AdmissionRepository extends JpaRepository<Admission, Long> {
      */
     @Query("select admission from Admission admission join fetch admission.bed bed join fetch bed.ward where admission.id = :id")
     Optional<Admission> findOneWithBedAndWard(@Param("id") Long id);
+
+    /** Every open stay, for the roles the specification puts no row rule on: nurses and administrators. */
+    @Query(
+        """
+        select admission from Admission admission
+        join fetch admission.visit visit
+        join fetch visit.patient
+        join fetch admission.primaryDoctor
+        left join fetch admission.bed bed
+        left join fetch bed.ward
+        where admission.status <> :discharged
+        order by admission.admittedAt asc
+        """
+    )
+    List<Admission> findOpenStays(@Param("discharged") AdmissionStatus discharged);
+
+    /** A stay with where the patient is and who is responsible, for deciding whether the caller may see it. */
+    @Query(
+        """
+        select admission from Admission admission
+        join fetch admission.primaryDoctor
+        left join fetch admission.bed bed
+        left join fetch bed.ward
+        where admission.id = :id
+        """
+    )
+    Optional<Admission> findOneWithBedWardAndPrimaryDoctor(@Param("id") Long id);
+
+    /**
+     * Open stays this doctor is responsible for.
+     *
+     * <p>Half of the inpatient row-level rule, and the half a query can express. The other half — "a ward
+     * they are covering" — is read from the roster and evaluated by {@code WardCoverage}, because "covering
+     * <em>now</em>" is a time comparison that belongs in one testable place rather than in a second copy of
+     * itself written in JPQL.
+     *
+     * <p>The discharged status is passed in rather than written as a literal, so a third open status added
+     * later is included by default rather than silently excluded.
+     */
+    @Query(
+        """
+        select admission from Admission admission
+        join fetch admission.visit visit
+        join fetch visit.patient
+        join fetch admission.primaryDoctor
+        join fetch admission.admittingDoctor
+        left join fetch admission.bed bed
+        left join fetch bed.ward
+        where admission.status <> :discharged
+          and admission.primaryDoctor.id = :doctorId
+        order by admission.admittedAt asc
+        """
+    )
+    List<Admission> findOpenStaysWherePrimaryDoctor(@Param("doctorId") Long doctorId, @Param("discharged") AdmissionStatus discharged);
+
+    /** Open stays currently in any of these wards — the doctors' half of the inpatient access rule. */
+    @Query(
+        """
+        select admission from Admission admission
+        join fetch admission.visit visit
+        join fetch visit.patient
+        join fetch admission.primaryDoctor
+        join fetch admission.admittingDoctor
+        join fetch admission.bed bed
+        join fetch bed.ward ward
+        where admission.status <> :discharged
+          and ward.id in :wardIds
+        order by admission.admittedAt asc
+        """
+    )
+    List<Admission> findOpenStaysInWards(@Param("wardIds") Collection<Long> wardIds, @Param("discharged") AdmissionStatus discharged);
 
     /**
      * How many other stays this patient has open.

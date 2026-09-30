@@ -377,7 +377,7 @@ public class SecurityConfiguration {
                     // ---- The stay itself (slice 3) ----
                     // A stay is clinical content: the ward staff and the doctors who own it read it, and so do
                     // administrators. The desk runs the outpatient side and the pharmacy has no business with it.
-                    .requestMatchers(HttpMethod.GET, "/api/admissions", "/api/admissions/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.GET, "/api/admissions", "/api/admissions/**").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
                     // Putting a patient into a bed is the nurse's job and the ward administrator's; §3 of the
                     // specification gives it to Nurse/Admin, and the transfer slice will use the same role set.
                     .requestMatchers(HttpMethod.PUT, "/api/admissions/*/bed").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
@@ -393,6 +393,39 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/admissions", "/api/admissions/**").hasAnyAuthority(SUPER_ADMIN)
 
                     .requestMatchers(HttpMethod.GET, "/api/inpatient-worklist", "/api/inpatient-worklist/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+
+                    // ---- Charting and the duty roster (slice 4) ----
+                    // The ward charts and the doctor reads. A doctor does not chart inpatient observations: they
+                    // read them on their own list, which is the whole reason the chart is on that screen.
+                    .requestMatchers(HttpMethod.POST, "/api/inpatient-charting/*/vitals", "/api/inpatient-charting/*/vitals/*/corrections").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.GET, "/api/inpatient-charting/*/vitals").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // The generated chart CRUD writes a reading straight in without going through the validator,
+                    // so unlike the read above it is not open to the ward.
+                    .requestMatchers(HttpMethod.GET, "/api/inpatient-vitals", "/api/inpatient-vitals/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/inpatient-vitals", "/api/inpatient-vitals/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    // ---- Doctor orders (slice 5) ----
+                    // The doctor writes and stops them; the ward carries them out. A nurse does not write an
+                    // order and a doctor does not record that a dose was given — those are different acts by
+                    // different people, and the record is only worth anything if it says which was which.
+                    .requestMatchers(HttpMethod.POST, "/api/inpatient-orders/*/executions").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.POST, "/api/inpatient-orders/*").hasAnyAuthority(DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.PUT, "/api/inpatient-orders/*/complete", "/api/inpatient-orders/*/cancel").hasAnyAuthority(DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.GET, "/api/inpatient-orders/admission/*").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // The generated order CRUD sets an order's status directly, which would make every action
+                    // above optional; the executions table is an append-only log of what was given.
+                    .requestMatchers(HttpMethod.GET, "/api/doctor-orders", "/api/doctor-orders/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/doctor-orders", "/api/doctor-orders/**").hasAnyAuthority(SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.GET, "/api/order-executions", "/api/order-executions/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/order-executions", "/api/order-executions/**").hasAnyAuthority(SUPER_ADMIN)
+
+                    // The roster keeps slice 2's rows for the generated CRUD: reads for the ward, every write
+                    // Super Admin. §3 mentions "Super Admin / Admin" as the assigner while the RBAC summary
+                    // gives the roster to Super Admin alone; the summary is the table that says who may do what,
+                    // so it wins. These rows cover the roster's own actions, which live on their own path
+                    // because the generated {id} route would otherwise swallow /current.
+                    .requestMatchers(HttpMethod.GET, "/api/ward-cover-roster/current").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/ward-cover-roster", "/api/ward-cover-roster/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ===============================================================
                     // Catch-all: any authenticated hospital user (keeps /api/account
