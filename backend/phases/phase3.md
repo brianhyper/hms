@@ -42,18 +42,22 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 
 ### Slices
 
-| Slice | Delivers | Depends on |
-|---|---|---|
-| S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — |
-| S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 |
-| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 |
-| S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 |
-| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 |
-| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 |
-| S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 |
-| S3.7 | Historical integrity where it is still missing: drug name, unit and price at the time on prescription and dispense lines | S3.6 |
-| S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role'sown access | S3.1 |
-| S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 |
+| Slice | Delivers | Depends on | Status (2026-09-30) |
+|---|---|---|---|
+| S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
+| S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
+| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation delivered**; lockout, idle timeout, forced first-login change and one-time reset tokens **open** |
+| S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **part: account events are audited**; the audit read rows are still method-agnostic |
+| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
+| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
+| S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **part: bill lines delivered** (`691e1fa`); nine services open |
+| S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | not started |
+| S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **not started, and Phase 4 is blocked on it** |
+| S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 | **part: the catch-all test is delivered** (`483f037`) and the two holes it found are closed; reference-data rows not yet audited |
+
+**A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is
+planned work, however finished it reads. This column exists because the table was read as a delivery list once
+already, and S3.2 was recorded as implemented when only its revocation half was.
 
 ### Open questions
 
