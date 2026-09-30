@@ -285,11 +285,13 @@ class BedResourceIT {
 
         restBedMockMvc
             .perform(put(ENTITY_API_URL_ID, bedDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(bedDTO)))
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Bed in the database
+        // Validate the Bed in the database: it did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedBedToMatchAllProperties(updatedBed);
+        Bed reloaded = bedRepository.findById(bed.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getDailyRateOverride()).isEqualByComparingTo(DEFAULT_DAILY_RATE_OVERRIDE);
     }
 
     @Test
@@ -370,12 +372,13 @@ class BedResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedBed))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Bed in the database
-
+        // Validate the Bed in the database: freeing or re-pricing a bed is the ward's own action.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertBedUpdatableFieldsEquals(createUpdateProxyForBean(partialUpdatedBed, bed), getPersistedBed(bed));
+        Bed reloaded = bedRepository.findById(bed.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getDailyRateOverride()).isEqualByComparingTo(DEFAULT_DAILY_RATE_OVERRIDE);
     }
 
     @Test
@@ -398,12 +401,40 @@ class BedResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedBed))
             )
+            .andExpect(status().isConflict());
+
+        // Validate the Bed in the database: nothing about the bed itself moved.
+        assertSameRepositoryCount(databaseSizeBeforeUpdate);
+        Bed reloaded = bedRepository.findById(bed.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getDailyRateOverride()).isEqualByComparingTo(DEFAULT_DAILY_RATE_OVERRIDE);
+    }
+
+    @Test
+    @Transactional
+    void theBedNumberCanStillBeCorrectedByHand() throws Exception {
+        // Initialize the database
+        insertedBed = bedRepository.saveAndFlush(bed);
+
+        long databaseSizeBeforeUpdate = getRepositoryCount();
+
+        // Only the number is changing, which no rule depends on.
+        Bed correction = new Bed();
+        correction.setId(bed.getId());
+        correction.setBedNumber("B-99");
+
+        restBedMockMvc
+            .perform(
+                patch(ENTITY_API_URL_ID, correction.getId())
+                    .contentType("application/merge-patch+json")
+                    .content(om.writeValueAsBytes(correction))
+            )
             .andExpect(status().isOk());
 
-        // Validate the Bed in the database
-
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertBedUpdatableFieldsEquals(partialUpdatedBed, getPersistedBed(partialUpdatedBed));
+        Bed reloaded = bedRepository.findById(bed.getId()).orElseThrow();
+        assertThat(reloaded.getBedNumber()).isEqualTo("B-99");
+        assertThat(reloaded.getStatus()).as("and the bed itself did not move").isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
