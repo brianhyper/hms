@@ -241,14 +241,18 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/bill-line-items", "/api/bill-line-items/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- AdHocCharge ----
-                    // An extra charge is money on a patient's bill, and until the charge has a workflow of its
-                    // own the generated CRUD was the only way to write one - which meant every signed-in account
-                    // could write it, because there was no row here at all and the catch-all let them through.
-                    // Reads for Finance; writes Super Admin, like the bill it lands on. A charge that needs a
-                    // reason and an authorisation will get its own workflow, and this row is what makes that a
-                    // deliberate change rather than something nobody noticed.
+                    // The specification gives this entity to Finance, with a mandatory reason, and its void
+                    // alongside it (phase2.md, the RBAC summary and slice 6). Finance raising one by hand is the
+                    // feature, not a workaround: there is no clinical workflow that "earns" an ad-hoc charge the
+                    // way a prescription earns a bill line, so the alternative to this row is not a workflow -
+                    // it is Finance being unable to do the job they were given.
+                    //
+                    // It was open to every signed-in account until the catch-all coverage test found it, which is
+                    // what this row fixes. When slice 6 builds the dedicated action (mandatory reason, void with
+                    // its own reason, both audited, and the charge attached to the running bill), this row goes
+                    // back to Super Admin only and the action becomes the way in.
                     .requestMatchers(HttpMethod.GET, "/api/ad-hoc-charges", "/api/ad-hoc-charges/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/ad-hoc-charges", "/api/ad-hoc-charges/**").hasAnyAuthority(SUPER_ADMIN)
+                    .requestMatchers("/api/ad-hoc-charges", "/api/ad-hoc-charges/**").hasAnyAuthority(FINANCE, ADMIN, SUPER_ADMIN)
 
                     // ---- Payment ----
                     .requestMatchers(HttpMethod.GET, "/api/payments", "/api/payments/**").hasAnyAuthority(RECEPTION, FINANCE, ADMIN, SUPER_ADMIN)

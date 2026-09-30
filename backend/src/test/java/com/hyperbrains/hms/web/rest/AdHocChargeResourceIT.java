@@ -47,7 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 @IntegrationTest
 @ExtendWith(MockitoExtension.class)
 @AutoConfigureMockMvc
-@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
+@WithMockUser(authorities = AuthoritiesConstants.FINANCE)
 class AdHocChargeResourceIT {
 
     private static final String DEFAULT_DESCRIPTION = "AAAAAAAAAA";
