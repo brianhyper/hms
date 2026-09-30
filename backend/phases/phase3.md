@@ -52,7 +52,7 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 | S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
 | S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **part: bill lines delivered** (`691e1fa`); nine services open |
 | S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | not started |
-| S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **not started, and Phase 4 is blocked on it** |
+| S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **delivered** — it is Phase 4's P4.0, built when Phase 4 started |
 | S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 | **part: the catch-all test is delivered** (`483f037`) and the two holes it found are closed; reference-data rows not yet audited |
 
 **A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is

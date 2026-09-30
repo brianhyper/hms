@@ -410,6 +410,16 @@ public class SecurityConfiguration {
                     .requestMatchers(HttpMethod.GET, "/api/ward-covers", "/api/ward-covers/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
                     .requestMatchers("/api/ward-covers", "/api/ward-covers/**").hasAnyAuthority(SUPER_ADMIN)
 
+                    // ---- Staff records (S3.8, and Phase 4's prerequisite) ----
+                    // HR owns the staff file. It is employment data rather than clinical data, and every Phase 4
+                    // table hangs off it, so unlike wards, beds and the roster there is no read for the ward and the
+                    // desk: nothing about a rota or a patient needs a colleague's identity number, start date and
+                    // contact details. Super Admin holds the same access as HR, as it does everywhere else.
+                    // Deliberately not extended to ADMIN or FINANCE until somebody needs it: widening this row is a
+                    // one-line change, whereas having leaked a staff file is not.
+                    .requestMatchers(HttpMethod.GET, "/api/staff-records", "/api/staff-records/**").hasAnyAuthority(HR, SUPER_ADMIN)
+                    .requestMatchers("/api/staff-records", "/api/staff-records/**").hasAnyAuthority(HR, SUPER_ADMIN)
+
                     .requestMatchers(HttpMethod.GET, "/api/beds", "/api/beds/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
                     // Housekeeping does not exist as a Phase 1 role, so closing the cleaning loop after a patient
                     // leaves is a nurse's or an administrator's job. Listed before the bed write catch-all below,

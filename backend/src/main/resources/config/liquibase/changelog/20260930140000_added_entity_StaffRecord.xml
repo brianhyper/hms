@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity StaffRecord: Phase 3's S3.8, which Phase 4 needs first.
+
+        WHY IT EXISTS
+        Phase 3 keeps a User (an account: credentials, roles, lock state, sessions) apart from a staff member's
+        employment record. Every Phase 4 table - Shift, LeaveRequest, StaffRecordNote, PayrollEntry - holds a
+        foreign key to this one, so nothing in that phase can be built before it.
+
+        WHY national_id IS UNIQUE AND REQUIRED
+        The record is keyed on identity rather than on a name, because names repeat, are spelled several ways and
+        change. It is also what the Phase 4 rows point at when they say "this person". Nullable would let the same
+        person be entered twice by leaving the field empty, which is the failure the field exists to prevent.
+        If a member of staff genuinely has no identity number, say so: the column becomes nullable and the unique
+        index stays, since PostgreSQL allows any number of nulls in a unique column.
+
+        WHY user_id IS UNIQUE
+        One login belongs to one person. Two staff records sharing an account would attribute the rota, the leave
+        balance and the payslip to whichever row happened to be read first.
+
+        WHY THERE IS NO SAMPLE DATA
+        The generated entities of Phases 1 and 2 load a faker CSV in the dev context. A staff file is not reference
+        data and is not a fixture: inventing people, identity numbers and start dates would put fabricated
+        employment records in a development database, and development databases have a way of becoming real ones.
+        A fresh database starts with an empty staff file, which is the truth.
+
+        NOTHING TO BACKFILL
+        A new table: no existing row is affected, and no column is added to another table.
+    -->
+    <changeSet id="20260930140000-1" author="hms">
+        <comment>Add the staff_record table: a member of staff, whether or not they sign in</comment>
+        <createTable tableName="staff_record">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="full_name" type="varchar(120)">
+                <constraints nullable="false" />
+            </column>
+            <column name="national_id" type="varchar(32)" remarks="The identity the record is keyed on; unique, so one person cannot be entered twice">
+                <constraints nullable="false" unique="true" uniqueConstraintName="ux_staff_record__national_id" />
+            </column>
+            <column name="job_title" type="varchar(120)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact_phone" type="varchar(30)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact_email" type="varchar(254)">
+                <constraints nullable="true" />
+            </column>
+            <column name="employment_start_date" type="date" remarks="Used by Phase 4's leave entitlement, which counts service from here">
+                <constraints nullable="false" />
+            </column>
+            <column name="status" type="varchar(20)" remarks="ACTIVE, ON_LEAVE or TERMINATED. Never deleted: a person who has left is TERMINATED, so the history survives">
+                <constraints nullable="false" />
+            </column>
+            <column name="department_id" type="bigint">
+                <constraints nullable="false" />
+            </column>
+            <column name="user_id" type="bigint" remarks="The account this person signs in with, or null for the many members of staff who have none">
+                <constraints nullable="true" unique="true" uniqueConstraintName="ux_staff_record__user_id" />
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

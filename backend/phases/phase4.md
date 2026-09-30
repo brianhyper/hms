@@ -64,6 +64,14 @@ roster must not be allowed to contradict.
 | P4.3 | `StaffRecordNote`: plain searchable PERFORMANCE/DISCIPLINARY log | P4.0 |
 | P4.4 | `PayrollEntry`: period, gross, deductions (free text), net, who paid and when, PENDING/PAID | P4.0, Finance-owned |
 
+**P4.0 is delivered.** `StaffRecord` exists as `staff_record` with `StaffRecordStatus` (ACTIVE / ON_LEAVE /
+TERMINATED), an optional and unique link to a `User`, HR-owned access, and no delete route at all — a member of
+staff who has left is `TERMINATED`, so the record and the Phase 4 rows that will hang off it survive. A record may
+name an account or name nothing, which is what lets a cleaner or a records clerk be on the staff file without ever
+signing in. The two things a staff file has to get right are refused with a stated reason rather than left to the
+unique indexes: one person is one record (by identity number), and one account belongs to one person. That leaves
+P4.1 onward, and each of those still needs the decisions below answered.
+
 Every slice follows the same discipline as Phases 1–3: generated where generation helps, business logic written
 by hand, `mvnw verify` before it is committed, and its own RBAC rows — the `/api/**` catch-all is watched by
 `CatchAllCoverageIT`, so a new entity without a row now fails a test rather than going unnoticed.
