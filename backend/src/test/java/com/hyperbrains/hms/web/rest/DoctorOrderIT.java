@@ -301,6 +301,7 @@ class DoctorOrderIT {
 
         ExecuteOrderRequestDTO execution = new ExecuteOrderRequestDTO();
         execution.setNotes("Dose given, cannula site clean");
+        execution.setQuantity(1);
         DoctorOrderViewDTO after = orderService.execute(placed.orderId(), execution);
 
         assertThat(after.status()).as("a nurse does not decide that a course is over").isEqualTo(DoctorOrderStatus.ACTIVE);
@@ -338,7 +339,7 @@ class DoctorOrderIT {
     @Test
     void thePrescriberStopsARecurringCourseAndTheHistoryStays() {
         DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(4));
-        orderService.execute(placed.orderId(), null);
+        orderService.execute(placed.orderId(), dose(1));
 
         DoctorOrderViewDTO stopped = orderService.complete(placed.orderId());
 
@@ -410,7 +411,7 @@ class DoctorOrderIT {
     @Test
     void placingAndCarryingOutAreBothRecorded() {
         DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(2));
-        orderService.execute(placed.orderId(), null);
+        orderService.execute(placed.orderId(), dose(2));
 
         List<AuditLog> trail = auditLogRepository.findByEntityNameAndEntityIdOrderByIdAsc(
             "DoctorOrder",
@@ -499,6 +500,106 @@ class DoctorOrderIT {
             .andExpect(status().isForbidden());
     }
 
+    // ---------------------------------------------------------------- the dose leaves the shelf
+
+    @Test
+    void carryingOutADoseTakesItOffTheShelfAndDischargesThatMuchReservation() {
+        DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(4));
+
+        orderService.execute(placed.orderId(), dose(1));
+
+        assertThat(drug.getCurrentStock()).as("one vial left the shelf").isEqualTo(19);
+        assertThat(drug.getReservedStock()).as("and that unit is no longer promised to this patient").isEqualTo(3);
+        assertThat(prescriptionRepository.findById(placed.prescriptionId()).orElseThrow().getStatus())
+            .as("three of the four still to give")
+            .isEqualTo(PrescriptionStatus.PARTIALLY_DISPENSED);
+    }
+
+    @Test
+    void theLastDoseLeavesThePrescriptionWithNothingOutstanding() {
+        DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(2));
+
+        orderService.execute(placed.orderId(), dose(2));
+
+        assertThat(drug.getCurrentStock()).isEqualTo(18);
+        assertThat(drug.getReservedStock()).isZero();
+        assertThat(prescriptionRepository.findById(placed.prescriptionId()).orElseThrow().getStatus()).isEqualTo(PrescriptionStatus.DISPENSED);
+    }
+
+    @Test
+    void aDoseBiggerThanWhatIsOutstandingIsRefusedWithNothingTaken() {
+        DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(4));
+
+        Long orderId = placed.orderId();
+        assertThatThrownBy(() -> orderService.execute(orderId, dose(5)))
+            .isInstanceOfSatisfying(BusinessRuleViolationException.class, ex -> assertThat(ex.getErrorKey()).isEqualTo("dispenseExceedsRemaining"));
+
+        assertThat(drug.getCurrentStock()).as("the hand-over was refused before any stock moved").isEqualTo(20);
+        assertThat(drug.getReservedStock()).as("and the reservation is intact").isEqualTo(4);
+    }
+
+    @Test
+    void carryingOutADrugOrderWithNoDoseAmountIsRefused() {
+        DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(4));
+
+        Long orderId = placed.orderId();
+        assertThatThrownBy(() -> orderService.execute(orderId, null))
+            .isInstanceOfSatisfying(BusinessRuleViolationException.class, ex -> assertThat(ex.getErrorKey()).isEqualTo("orderDoseRequired"));
+
+        assertThat(drug.getCurrentStock()).as("nothing was guessed and nothing left the shelf").isEqualTo(20);
+    }
+
+    @Test
+    void anOrderThatSuppliesNoMedicineCannotTakeMedicineOffTheShelf() {
+        DoctorOrderViewDTO placed = orderService.place(
+            admission.getId(),
+            order(DoctorOrderType.INSTRUCTION, DoctorOrderRecurrence.RECURRING, "Hourly urine output")
+        );
+
+        Long orderId = placed.orderId();
+        assertThatThrownBy(() -> orderService.execute(orderId, dose(1)))
+            .isInstanceOfSatisfying(BusinessRuleViolationException.class, ex -> assertThat(ex.getErrorKey()).isEqualTo("orderSuppliesNoStock"));
+
+        assertThat(drug.getCurrentStock()).isEqualTo(20);
+    }
+
+    @Test
+    @WithMockUser(
+        value = "admin",
+        authorities = "ROLE_NURSE"
+    )
+    void aDoseGivenThroughTheWardRouteTakesTheStock() throws Exception {
+        // The login only has to exist so the dose can be attributed to somebody; the authority is what is
+        // being exercised here, and recording a dose is the nurse's permission, not the prescriber's.
+        DoctorOrderViewDTO placed = orderService.place(admission.getId(), drugOrder(4));
+
+        mockMvc
+            .perform(
+                post("/api/inpatient-orders/{orderId}/executions", placed.orderId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"quantity\":1,\"notes\":\"Given at 14:00\"}")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.executions[0].notes").value("Given at 14:00"));
+
+        assertThat(drug.getCurrentStock()).as("the ward route moves the stock itself, without the counter").isEqualTo(19);
+    }
+
+    @Test
+    @WithMockUser(value = "nurse", authorities = "ROLE_NURSE")
+    void theWardCannotReachThePharmacyCounterItself() throws Exception {
+        // The dose reaches the shelf through the ward's own order execution, so the ward has no business on
+        // pharmacy's route: this is the one place where "who may move drug stock" is answered, and an answer
+        // that names five roles is not an answer.
+        mockMvc
+            .perform(
+                post("/api/pharmacy-dispense/{id}/dispense", 1L)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"lines\":[{\"prescriptionLineId\":1,\"quantity\":1}]}")
+            )
+            .andExpect(status().isForbidden());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /** The visit's bill, if a charge ever opened one. Read fresh, because the fixture's copy is stale. */
@@ -520,6 +621,13 @@ class DoctorOrderIT {
         request.setQuantity(quantity);
         request.setDosage("1 vial twice daily");
         request.setDuration("5 days");
+        return request;
+    }
+
+    /** Carrying out a drug order has to say how much was given; this is that, and nothing else. */
+    private static ExecuteOrderRequestDTO dose(int quantity) {
+        ExecuteOrderRequestDTO request = new ExecuteOrderRequestDTO();
+        request.setQuantity(quantity);
         return request;
     }
 }

@@ -4,12 +4,15 @@ import com.hyperbrains.hms.domain.Admission;
 import com.hyperbrains.hms.domain.DoctorOrder;
 import com.hyperbrains.hms.domain.OrderExecution;
 import com.hyperbrains.hms.domain.Prescription;
+import com.hyperbrains.hms.domain.PrescriptionLine;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.domain.enumeration.DoctorOrderStatus;
 import com.hyperbrains.hms.domain.enumeration.PrescriptionSource;
+import com.hyperbrains.hms.domain.enumeration.PrescriptionStatus;
 import com.hyperbrains.hms.repository.AdmissionRepository;
 import com.hyperbrains.hms.repository.DoctorOrderRepository;
 import com.hyperbrains.hms.repository.OrderExecutionRepository;
+import com.hyperbrains.hms.repository.PrescriptionLineRepository;
 import com.hyperbrains.hms.repository.PrescriptionRepository;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.SecurityUtils;
@@ -18,6 +21,8 @@ import com.hyperbrains.hms.service.AuditLogService;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.PersonNames;
 import com.hyperbrains.hms.service.dto.view.CancelDoctorOrderRequestDTO;
+import com.hyperbrains.hms.service.dto.view.DispenseLineRequestDTO;
+import com.hyperbrains.hms.service.dto.view.DispenseRequestDTO;
 import com.hyperbrains.hms.service.dto.view.DoctorOrderViewDTO;
 import com.hyperbrains.hms.service.dto.view.ExecuteOrderRequestDTO;
 import com.hyperbrains.hms.service.dto.view.OrderExecutionViewDTO;
@@ -27,6 +32,7 @@ import com.hyperbrains.hms.service.dto.view.PrescriptionLineRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionViewDTO;
 import com.hyperbrains.hms.service.rules.AdmissionLifecycle;
 import com.hyperbrains.hms.service.rules.DoctorOrderLifecycle;
+import com.hyperbrains.hms.service.workflow.DispenseWorkflowService;
 import com.hyperbrains.hms.service.workflow.DoctorOrderWorkflowService;
 import com.hyperbrains.hms.service.workflow.InpatientAccessService;
 import com.hyperbrains.hms.service.workflow.PrescriptionWorkflowService;
@@ -60,6 +66,10 @@ public class DoctorOrderWorkflowServiceImpl implements DoctorOrderWorkflowServic
 
     private final PrescriptionWorkflowService prescriptionWorkflowService;
 
+    private final PrescriptionLineRepository prescriptionLineRepository;
+
+    private final DispenseWorkflowService dispenseWorkflowService;
+
     private final InpatientAccessService accessService;
 
     private final AuditLogService auditLogService;
@@ -71,6 +81,8 @@ public class DoctorOrderWorkflowServiceImpl implements DoctorOrderWorkflowServic
         PrescriptionRepository prescriptionRepository,
         UserRepository userRepository,
         PrescriptionWorkflowService prescriptionWorkflowService,
+        PrescriptionLineRepository prescriptionLineRepository,
+        DispenseWorkflowService dispenseWorkflowService,
         InpatientAccessService accessService,
         AuditLogService auditLogService
     ) {
@@ -80,6 +92,8 @@ public class DoctorOrderWorkflowServiceImpl implements DoctorOrderWorkflowServic
         this.prescriptionRepository = prescriptionRepository;
         this.userRepository = userRepository;
         this.prescriptionWorkflowService = prescriptionWorkflowService;
+        this.prescriptionLineRepository = prescriptionLineRepository;
+        this.dispenseWorkflowService = dispenseWorkflowService;
         this.accessService = accessService;
         this.auditLogService = auditLogService;
     }
@@ -149,6 +163,13 @@ public class DoctorOrderWorkflowServiceImpl implements DoctorOrderWorkflowServic
         execution.setNotes(request == null ? null : request.getNotes());
         execution = orderExecutionRepository.save(execution);
 
+        // Medicine given is medicine gone, so recording the dose is what moves the stock. This runs in-process
+        // against the reservation this order's own prescription took out, through the same logic the pharmacy
+        // counter uses: the ward never reaches the counter's route, and it could not, because that route is
+        // pharmacy's and stays pharmacy's. If the dose cannot be supplied the whole execution rolls back — a
+        // dose charted against stock nobody handed over would be a record of something that did not happen.
+        String supplied = takeOffTheShelf(order, execution, request);
+
         // A one-off order is done by doing it. A recurring one is not: the course ends when the prescriber says
         // so, not when the last charted dose is given.
         if (DoctorOrderLifecycle.completesOnExecution(order.getRecurrence())) {
@@ -158,11 +179,92 @@ public class DoctorOrderWorkflowServiceImpl implements DoctorOrderWorkflowServic
 
         auditLogService.record(
             AuditLogService.Entry.of(AuditActions.ORDER_EXECUTED, "DoctorOrder", order.getId()).withDetails(
-                describe(order) + "; carried out by " + nurse.getLogin() + notes(execution.getNotes()) + "; now " + order.getStatus()
+                describe(order) +
+                "; carried out by " +
+                nurse.getLogin() +
+                notes(execution.getNotes()) +
+                supplied +
+                "; now " +
+                order.getStatus()
             )
         );
 
         return view(order, executionsOf(order));
+    }
+
+    /**
+     * Takes this execution's dose off the shelf, and says what the prescription looks like afterwards.
+     *
+     * <p>An order that supplies no medicine takes nothing, and refuses to be told it did. The single-line
+     * check is not decoration: an order is supplied by the prescription its own placement wrote, and with more
+     * than one line there is no way to say which line the dose came from — better to refuse than to guess.
+     */
+    private String takeOffTheShelf(DoctorOrder order, OrderExecution execution, ExecuteOrderRequestDTO request) {
+        Integer quantity = request == null ? null : request.getQuantity();
+
+        if (!DoctorOrderLifecycle.requiresAPrescription(order.getType())) {
+            if (quantity != null) {
+                throw BusinessRuleViolationException.of(
+                    "orderSuppliesNoStock",
+                    "doctorOrder",
+                    "Order " +
+                    order.getId() +
+                    " is a " +
+                    order.getType() +
+                    " order and supplies no medicine, so it cannot take " +
+                    quantity +
+                    " off the shelf"
+                );
+            }
+            return "";
+        }
+
+        if (quantity == null || quantity < 1) {
+            throw BusinessRuleViolationException.of(
+                "orderDoseRequired",
+                "doctorOrder",
+                "Carrying out a drug order has to say how much was given, because the dose is what leaves the shelf"
+            );
+        }
+
+        Prescription prescription = order.getPrescription();
+        if (prescription == null) {
+            throw BusinessRuleViolationException.of(
+                "orderHasNoPrescription",
+                "doctorOrder",
+                "Order " + order.getId() + " is a drug order with nothing prescribed behind it, so there is no stock to hand over"
+            );
+        }
+
+        List<PrescriptionLine> lines = prescriptionLineRepository.findWithDrugByPrescriptionId(prescription.getId());
+        if (lines.size() != 1) {
+            throw BusinessRuleViolationException.of(
+                "orderPrescriptionNotOneLine",
+                "doctorOrder",
+                "Order " +
+                order.getId() +
+                " is supplied by prescription " +
+                prescription.getId() +
+                ", which has " +
+                lines.size() +
+                " lines, so the dose cannot be attributed to one of them"
+            );
+        }
+        PrescriptionLine line = lines.getFirst();
+
+        DispenseLineRequestDTO given = new DispenseLineRequestDTO();
+        given.setPrescriptionLineId(line.getId());
+        given.setQuantity(quantity);
+
+        DispenseRequestDTO handOver = new DispenseRequestDTO();
+        handOver.setLines(List.of(given));
+        handOver.setNote("recorded against order " + order.getId() + ", execution " + execution.getId());
+
+        dispenseWorkflowService.dispense(prescription.getId(), handOver);
+
+        // The entity is the instance the dispense just changed, so this is the status after the hand-over.
+        PrescriptionStatus status = prescription.getStatus();
+        return "; %d %s handed over, prescription %d now %s".formatted(quantity, line.getDrug().getUnit(), prescription.getId(), status);
     }
 
     @Override

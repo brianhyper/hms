@@ -329,11 +329,11 @@ public class SecurityConfiguration {
 
                     // ---- Dispensing workflow ----
                     // The last step of the guarantee: only a settled prescription reaches here, so this
-                    // route cannot be used to hand medicine over for free. Inpatients are the exception the
-                    // client asked for: the ward collects medicine without paying first, so a nurse or a
-                    // doctor has to be able to record that collection. The money is not forgotten - the
-                    // charge is already on the stay's bill - it simply is not the gate in front of the dose.
-                    .requestMatchers(HttpMethod.POST, "/api/pharmacy-dispense/*/dispense").hasAnyAuthority(PHARMACY, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // route cannot be used to hand medicine over for free. Pharmacy owns it, and only
+                    // pharmacy, because this is the one place where "who may move drug stock" is answered:
+                    // widen it and that answer becomes "one of five roles". The ward records a dose against
+                    // its own order instead, and the dispense happens in-process behind that.
+                    .requestMatchers(HttpMethod.POST, "/api/pharmacy-dispense/*/dispense").hasAnyAuthority(PHARMACY)
                     .requestMatchers(HttpMethod.GET, "/api/pharmacy-dispense/*/history").hasAnyAuthority(DOCTOR, PHARMACY, ADMIN, SUPER_ADMIN)
 
                     // ---- Referral workflow ----
