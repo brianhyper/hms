@@ -49,6 +49,20 @@ public final class WardCoverage {
         return coversTo == null || at.isBefore(coversTo);
     }
 
+    /**
+     * Whether this period grants anything at a given moment, for a ward that may or may not still be taking
+     * patients.
+     *
+     * <p>The window is not the whole rule. Closing a ward is how a ward is taken out of service, and a roster
+     * entry outlives the closure: it was a true arrangement when it was written, and nothing edits the roster
+     * to say otherwise. Reading the window alone would leave a doctor holding access to the patients of a ward
+     * the hospital has stopped using, so the closure belongs in the rule rather than being left to whichever
+     * screens are expected to have caught up.
+     */
+    public static boolean isInForce(Instant coversFrom, Instant coversTo, Instant at, boolean wardTakesPatients) {
+        return wardTakesPatients && isActiveAt(coversFrom, coversTo, at);
+    }
+
     /** Whether this period has already ended by the given moment. */
     public static boolean hasEndedBy(Instant coversTo, Instant at) {
         return coversTo != null && at != null && !at.isBefore(coversTo);

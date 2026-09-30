@@ -126,11 +126,22 @@ public class InpatientAccessServiceImpl implements InpatientAccessService {
         return wardCoverRepository
             .findByDoctorIdWithWard(doctorId)
             .stream()
-            .filter(cover -> WardCoverage.isActiveAt(cover.getCoversFrom(), cover.getCoversTo(), now))
+            .filter(cover -> isCoverInForce(cover, now))
             .map(WardCover::getWard)
             .filter(ward -> ward != null && ward.getId() != null)
             .map(Ward::getId)
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Whether this roster entry is cover the doctor can act on now. The ward being open is part of it: the
+     * assignment-time check cannot help here, because the ward was open when the cover was written and nobody
+     * edits the roster when a ward is closed.
+     */
+    private static boolean isCoverInForce(WardCover cover, Instant now) {
+        Ward ward = cover.getWard();
+        boolean wardTakesPatients = ward != null && Boolean.TRUE.equals(ward.getActive());
+        return WardCoverage.isInForce(cover.getCoversFrom(), cover.getCoversTo(), now, wardTakesPatients);
     }
 
     private static boolean isPrimaryDoctor(Admission admission, User user) {

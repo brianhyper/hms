@@ -51,6 +51,23 @@ class WardCoverageTest {
         assertThat(WardCoverage.isActiveAt(SHIFT_START, null, SHIFT_START.plusSeconds(86_400))).isTrue();
     }
 
+    /**
+     * A ward that has been taken out of service grants nothing, however valid the window looks. The roster entry
+     * was written while the ward was open and nothing edits it when the ward closes, so the closure has to be
+     * read at the moment cover is claimed rather than assumed to have been caught upstream.
+     */
+    @Test
+    void coverOnAWardThatIsNotTakingPatientsGrantsNothing() {
+        assertThat(WardCoverage.isInForce(SHIFT_START, SHIFT_END, SHIFT_START, true)).as("an open ward, inside the window").isTrue();
+        assertThat(WardCoverage.isInForce(SHIFT_START, SHIFT_END, SHIFT_END, true)).as("an open ward, outside the window").isFalse();
+        assertThat(WardCoverage.isInForce(SHIFT_START, SHIFT_END, SHIFT_START, false))
+            .as("a closed ward, whatever the window says")
+            .isFalse();
+        assertThat(WardCoverage.isInForce(SHIFT_START, null, SHIFT_START, false))
+            .as("and an open-ended period on a closed ward is still nothing")
+            .isFalse();
+    }
+
     @Test
     void coverWithNoStartIsNeverInForceAndNothingIsInForceAtNoParticularTime() {
         assertThat(WardCoverage.isActiveAt(null, SHIFT_END, SHIFT_START)).isFalse();

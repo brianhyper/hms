@@ -55,6 +55,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -284,6 +285,41 @@ class InpatientAccessIT {
     }
 
     @Test
+    void closingAWardTakesItsPatientsBackOffTheCoveringDoctorsList() {
+        cover(wardB, now(), now().plus(8, ChronoUnit.HOURS), null);
+        assertThat(mineIn(accessService.myPatients()))
+            .as("cover on a ward that is open does show its patients")
+            .extracting(MyPatientViewDTO::admissionId)
+            .contains(onACoveredWard.getId());
+
+        close(wardB);
+
+        assertThat(mineIn(accessService.myPatients()))
+            .as("a ward taken out of service is nobody's to cover, whatever the roster still says")
+            .extracting(MyPatientViewDTO::admissionId)
+            .doesNotContain(onACoveredWard.getId());
+        assertThat(mineIn(accessService.myPatients()))
+            .as("and their own patient is still theirs, because the cover was never what put them there")
+            .extracting(MyPatientViewDTO::admissionId)
+            .contains(mine.getId());
+    }
+
+    /**
+     * The sharper half of the same rule. Cover is also the claim that lets a doctor write on a patient — orders
+     * and charting both go through this check — so a roster entry for a closed ward would otherwise leave a
+     * doctor able to chart on patients the hospital has stopped using.
+     */
+    @Test
+    void closingAWardStopsTheCoveringDoctorWritingOnItsPatients() {
+        cover(wardB, now(), now().plus(8, ChronoUnit.HOURS), null);
+        accessService.requireMayView(onACoveredWard.getId());
+
+        close(wardB);
+
+        assertThatThrownBy(() -> accessService.requireMayView(onACoveredWard.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
     void aDischargedPatientIsOnNobodyListEvenTheirOwnDoctors() {
         Admission ended = admissionRepository.findById(mine.getId()).orElseThrow();
         ended.setStatus(AdmissionStatus.DISCHARGED);
@@ -454,6 +490,13 @@ class InpatientAccessIT {
 
     private WardCoverViewDTO cover(Ward ward, Instant from, Instant to, String note) {
         return wardCoverService.assign(request(ward, me, from, to, note));
+    }
+
+    /** Takes a ward out of service the way the ward screens do, without going through the endpoint. */
+    private void close(Ward ward) {
+        Ward closing = wardRepository.findById(ward.getId()).orElseThrow();
+        closing.setActive(false);
+        wardRepository.saveAndFlush(closing);
     }
 
     private static AssignWardCoverRequestDTO request(Ward ward, User doctor, Instant from, Instant to, String note) {
