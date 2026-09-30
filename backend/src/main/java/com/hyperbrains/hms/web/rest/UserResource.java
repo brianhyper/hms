@@ -5,6 +5,7 @@ import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
+import com.hyperbrains.hms.service.dto.view.UnlockAccountRequestDTO;
 import com.hyperbrains.hms.service.MailService;
 import com.hyperbrains.hms.service.UserService;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
@@ -199,6 +200,31 @@ public class UserResource {
      * @param login the login of the user to delete.
      * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
      */
+    /**
+     * {@code POST /admin/users/:login/unlock} : releases a sign-in lock after repeated failures.
+     *
+     * <p>The lock goes on by itself; taking it off is a decision, so it needs the reason that makes the decision
+     * reviewable. Super Admin only, like the rest of account management in Phase 3 — if Administration should be
+     * able to release locks as an operational override, that belongs on the standard override mechanism rather
+     * than as a second, quieter rule here.
+     *
+     * @param login the login whose lock is released.
+     * @param request carries the mandatory reason.
+     * @return {@code 200 (OK)} when the lock is released.
+     */
+    @PostMapping("/users/{login}/unlock")
+    @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.SUPER_ADMIN + "\")")
+    public ResponseEntity<Void> unlockUser(
+        @PathVariable("login") @Pattern(regexp = Constants.LOGIN_REGEX) String login,
+        @Valid @RequestBody UnlockAccountRequestDTO request
+    ) {
+        LOG.debug("REST request to unlock User: {}", login);
+        userService.unlock(login, request.getReason());
+        return ResponseEntity.ok()
+            .headers(HeaderUtil.createAlert(applicationName, "The sign-in lock on " + login + " is released", login))
+            .build();
+    }
+
     /**
      * {@code DELETE /admin/users/:login} : refuses, because an account is never deleted.
      *

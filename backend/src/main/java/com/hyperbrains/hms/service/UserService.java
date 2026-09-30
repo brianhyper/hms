@@ -332,6 +332,45 @@ public class UserService {
     }
 
     /**
+     * Releases a sign-in lock, and says why.
+     *
+     * <p>Phase 3 has no automatic release. A locked account stays locked until somebody with the authority to
+     * release it does so deliberately, with a reason that goes into the audit trail — which is the point of a
+     * lockout, and the reason a timer would be the wrong shape for it.
+     */
+    public void unlock(String login, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw BusinessRuleViolationException.of(
+                "unlockReasonRequired",
+                "user",
+                "Releasing a sign-in lock requires a reason"
+            );
+        }
+
+        User user = userRepository
+            .findOneByLogin(login.toLowerCase(Locale.ENGLISH))
+            .orElseThrow(() -> BusinessRuleViolationException.of("userNotFound", "user", "No account with login " + login));
+
+        if (user.getLockedAt() == null) {
+            throw BusinessRuleViolationException.of(
+                "userNotLocked",
+                "user",
+                login + " is not locked, so there is nothing to release"
+            );
+        }
+
+        user.setFailedAttempts(0);
+        user.setLockedAt(null);
+        userRepository.save(user);
+        this.clearUserCaches(user);
+        auditLogService.record(
+            AuditLogService.Entry.of(AuditActions.USER_UNLOCKED, "User", user.getId())
+                .withReason(reason)
+                .withDetails("Sign-in lock released for " + user.getLogin())
+        );
+    }
+
+    /**
      * Deletes an account outright.
      *
      * <p><strong>Not reachable from any route, and that is the point.</strong> Phase 3 requires that accounts

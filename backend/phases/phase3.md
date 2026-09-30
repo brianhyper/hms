@@ -46,7 +46,7 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 |---|---|---|---|
 | S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
-| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation delivered**; lockout, idle timeout, forced first-login change and one-time reset tokens **open** |
+| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation and lockout delivered**; idle timeout, forced first-login change and one-time reset tokens **open** |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **part: account events are audited**; the audit read rows are still method-agnostic |
 | S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
 | S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
@@ -58,6 +58,21 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 **A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is
 planned work, however finished it reads. This column exists because the table was read as a delivery list once
 already, and S3.2 was recorded as implemented when only its revocation half was.
+
+**A defect the lockout work exposed, fixed with it.** `DaoAuthenticationProvider` wraps anything that
+`loadUserByUsername` throws into `InternalAuthenticationServiceException`, and the single place this app decides
+401 is `ExceptionTranslator.getMappedStatus`, which recognised `BadCredentialsException` alone. So **a locked
+account and an account that was never activated both answered 500 rather than 401** — the inactive-account one
+in shipped code, unnoticed because the whole suite signs in with `@WithMockUser` and never
+reaches the real login path. `getMappedStatus` now looks through that wrap for those two refusals only, so a
+genuine failure to reach the database is still reported as the server error it is. `AccountLockoutIT` is the
+only test that signs in for real, and it asserts that the answer for a locked account is byte-identical to the
+answer for a wrong password — the non-disclosure decision in `DomainUserDetailsService`, made testable.
+
+**Left as a decision, not taken silently:** the answer for a never-activated account still says so, which
+confirms to an anonymous caller that the account exists. That is JHipster's original wording and it tells a
+genuine activation-pending user why they cannot sign in, but it is the same class of disclosure that was
+rejected for the lock.
 
 ### Open questions
 

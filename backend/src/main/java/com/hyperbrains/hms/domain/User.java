@@ -75,6 +75,20 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
     @Column(name = "sessions_valid_from")
     private Instant sessionsValidFrom;
 
+    /**
+     * Consecutive failed sign-in attempts, and when they locked the account.
+     *
+     * <p>Phase 3 fixes the threshold and leaves the release to a person: {@code lockedAt} is cleared only by an
+     * explicit unlock, with a reason, which is audited. There is deliberately no unlock timer — a second policy
+     * nobody decided on would quietly undo both reasons a lock exists, which are to stop the guessing and to make
+     * somebody look at the account.
+     */
+    @Column(name = "failed_attempts", nullable = false)
+    private int failedAttempts;
+
+    @Column(name = "locked_at")
+    private Instant lockedAt;
+
     @Size(min = 2, max = 10)
     @Column(name = "lang_key", length = 10)
     private String langKey;
@@ -178,6 +192,22 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     public void setSessionsValidFrom(Instant sessionsValidFrom) {
         this.sessionsValidFrom = sessionsValidFrom;
+    }
+
+    public int getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    public void setFailedAttempts(int failedAttempts) {
+        this.failedAttempts = failedAttempts;
+    }
+
+    public Instant getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(Instant lockedAt) {
+        this.lockedAt = lockedAt;
     }
 
     public String getActivationKey() {

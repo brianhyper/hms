@@ -101,5 +101,9 @@ public final class AuditActions {
     public static final String PASSWORD_RESET_REQUESTED = "PASSWORD_RESET_REQUESTED";
     public static final String PASSWORD_RESET_COMPLETED = "PASSWORD_RESET_COMPLETED";
 
+    /** A lock goes on by itself after repeated failures; releasing one is always a person's decision. */
+    public static final String USER_LOCKED = "USER_LOCKED";
+    public static final String USER_UNLOCKED = "USER_UNLOCKED";
+
     private AuditActions() {}
 }

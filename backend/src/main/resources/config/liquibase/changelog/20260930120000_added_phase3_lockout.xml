@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Failed sign-in attempts, and the lock they earn.
+
+        WHY THE COUNT IS STORED RATHER THAN REMEMBERED
+        A lock has to survive a restart. Counting attempts in memory would mean that whoever is guessing passwords
+        gets a fresh allowance every time the application is redeployed, which is exactly when nobody is watching.
+
+        WHY THERE IS NO UNLOCK TIMER
+        Phase 3 fixes the threshold and leaves the release to a person: a Super Admin clears the lock through an
+        explicit action, with a reason, and the release is audited. An automatic release would be a second policy
+        nobody decided on, and it would undo the two things a lock is for - stopping the guessing, and making
+        somebody look at the account.
+
+        EXISTING ACCOUNTS
+        failed_attempts defaults to 0 and locked_at is nullable, so nothing needs backfilling and no existing
+        account is locked by this.
+    -->
+    <changeSet id="20260930120000-1" author="hms">
+        <comment>Add jhi_user.failed_attempts and jhi_user.locked_at for the sign-in lockout</comment>
+        <addColumn tableName="jhi_user">
+            <column name="failed_attempts" type="int" defaultValueNumeric="0" remarks="Failed sign-in attempts since the last success">
+                <constraints nullable="false"/>
+            </column>
+            <column name="locked_at" type="timestamp" remarks="When the account was locked for repeated failures; cleared only by an explicit unlock">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

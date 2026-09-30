@@ -2,6 +2,7 @@ package com.hyperbrains.hms.web.rest.errors;
 
 import static org.springframework.core.annotation.AnnotatedElementUtils.findMergedAnnotation;
 
+import com.hyperbrains.hms.security.UserNotActivatedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
@@ -285,9 +286,25 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         // Where we disagree with Spring defaults
         if (err instanceof AccessDeniedException) return HttpStatus.FORBIDDEN;
         if (err instanceof ConcurrencyFailureException) return HttpStatus.CONFLICT;
-        if (err instanceof BadCredentialsException) return HttpStatus.UNAUTHORIZED;
         if (err instanceof ConstraintViolationException) return HttpStatus.BAD_REQUEST;
-        return null;
+        // A refused sign-in is a refused sign-in, however it arrived. Spring's DaoAuthenticationProvider wraps
+        // whatever the user-details service threw into an InternalAuthenticationServiceException, which carries
+        // no status of its own, so a locked account and an account that was never activated both answered 500:
+        // telling the caller the server was broken rather than that their credentials were refused. Only these
+        // two refusals are seen through the wrap; a genuine failure to reach the database stays a server error.
+        return isSignInRefusal(err) ? HttpStatus.UNAUTHORIZED : null;
+    }
+
+    private static boolean isSignInRefusal(Throwable err) {
+        for (Throwable current = err; current != null; current = current.getCause()) {
+            if (current instanceof BadCredentialsException || current instanceof UserNotActivatedException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return false;
     }
 
     private URI getPathValue(NativeWebRequest request) {
