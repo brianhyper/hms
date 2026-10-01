@@ -1,6 +1,5 @@
 package com.hyperbrains.hms.security;
 
-import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -79,11 +78,14 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         }
 
         Jwt jwt = token.orElseThrow();
-        Optional<User> account = accounts.findOneWithAuthoritiesByLogin(jwt.getSubject());
+        // The account is read through a projection rather than through the account entity: the entity comes from the
+        // usersByLogin cache, which is evicted by UserService alone, and the counting listener writes a lock through
+        // the repository. A cached copy would decide this control on state that nobody had stored.
+        Optional<UserRepository.SignInState> found = accounts.findSignInStateByLogin(jwt.getSubject());
 
-        if (account.isPresent()) {
-            User user = account.orElseThrow();
-            if (wasEnded(user, jwt)) {
+        if (found.isPresent()) {
+            UserRepository.SignInState account = found.orElseThrow();
+            if (wasEnded(account, jwt)) {
                 refuse(response, SESSION_ENDED);
                 return;
             }
@@ -103,7 +105,7 @@ public class SessionValidityFilter extends OncePerRequestFilter {
     }
 
     /** Whether this token is older than the moment the account's sessions stopped being accepted. */
-    private static boolean wasEnded(User account, Jwt jwt) {
+    private static boolean wasEnded(UserRepository.SignInState account, Jwt jwt) {
         if (!account.isActivated()) {
             return true;
         }
@@ -115,8 +117,13 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         // number of seconds while this stamp carries microseconds, so a token minted in the very second the account
         // was switched off is a fraction *before* the stamp and was refused — which is why switching an account off
         // and on again appeared to lock the person out, and why the test that said so failed only when it ran fast
-        // enough. Truncating the stamp makes the boundary the permissive one this control wants: a token issued in
-        // the same second survives, one issued a second earlier does not.
+        // enough.
+        //
+        // The cost of truncating, stated rather than left to be discovered: a token issued in the same second as the
+        // revocation survives it, so the control has a window one second wide that favours the caller. That is the
+        // deliberate direction — the alternative refuses a legitimate sign-in that happened to land in that second,
+        // which is the failure this code was just taken out of. One second, against a control whose other side is a
+        // person unable to sign in at all.
         return jwt.getIssuedAt().isBefore(validFrom.truncatedTo(ChronoUnit.SECONDS));
     }
 

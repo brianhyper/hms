@@ -65,9 +65,11 @@ roster must not be allowed to contradict.
 | P4.4 | `PayrollEntry`: period, gross, deductions (free text), net, who paid and when, PENDING/PAID | P4.0, Finance-owned |
 
 **Watch item for P4.4.** Finance owns `PayrollEntry` and will need at least the staff member's name and department to
-pay anybody. That must be a read granted for the payroll screen, or a column-level read of `StaffRecord` — not a
-widening of `/api/staff-records` to FINANCE, which would hand Finance identity numbers, contact details and
-employment history along with the name. Decide the shape when P4.4 is built rather than widening the record then.
+pay anybody. The read it needs is narrow: either a payroll-shaped read that carries the name and department and
+nothing else, or a column-level read of `StaffRecord`. What must not happen is adding FINANCE to the
+`/api/staff-records` rows as they stand, because that hands over identity numbers, contact details and employment
+history along with the name — the whole record widened to reach one field. Decide the shape when P4.4 is built,
+before anyone is tempted to widen the row instead.
 
 **P4.0 is delivered.** `StaffRecord` exists as `staff_record` with `StaffRecordStatus` (ACTIVE / ON_LEAVE /
 TERMINATED), an optional and unique link to a `User`, HR-owned access, and no delete route at all — a member of

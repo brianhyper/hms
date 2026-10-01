@@ -2,6 +2,7 @@ package com.hyperbrains.hms.web.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.hyperbrains.hms.IntegrationTest;
@@ -10,6 +11,7 @@ import com.hyperbrains.hms.repository.AuthorityRepository;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.security.jwt.JwtAuthenticationTestUtils;
+import com.hyperbrains.hms.service.LoginAttemptListener;
 import com.hyperbrains.hms.service.UserService;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -32,7 +35,12 @@ import org.springframework.test.web.servlet.ResultActions;
  * {@code SessionRevocationIT} does the same thing inside one test transaction, and there the cached account and
  * the deactivation share one persistence context: the cache hands back the very object {@code updateUser} mutated,
  * so a stale cache cannot show itself. Here each step commits, so the switch-off happens in a persistence context
- * of its own — which is what a second request, a second node or a real deployment looks like.
+ * of its own — which is what any later request in its own transaction does.
+ *
+ * <p><strong>What this does not prove, stated so nobody relies on it:</strong> the cache is Ehcache, in-process,
+ * and it is evicted locally. A second node would keep a stale account for up to an hour, and this test would not
+ * notice — it cannot, because it runs on one node. The control is sound on a single server, which is what this
+ * deployment is; a shared cache or a read that bypasses the cache would be needed to move off one.
  *
  * <p>Revocation reads the account through {@code findOneWithAuthoritiesByLogin}, which is served from the
  * {@code usersByLogin} cache with a one-hour time to live. If that read is what decides whether somebody switched
@@ -102,6 +110,48 @@ class SessionRevocationCacheIT {
         assertThat(reloaded.isActivated()).as("the account is active again").isTrue();
 
         call(tokenFor(account)).andExpect(status().isOk());
+    }
+
+    /**
+     * The sign-in lock is the other control read from that cached account, and it has the same question attached.
+     *
+     * <p>It matters more here, because the lock is <em>written</em> by the counting listener straight through the
+     * repository, and the only eviction in the application is in {@code UserService}. If nothing evicts on that path,
+     * five wrong passwords leave the cache saying the account is open, and the lock does nothing for up to an hour —
+     * while every transactional test still passes, because there the cached object is the one the listener mutated.
+     */
+    @Test
+    void aLockedAccountIsRefusedEvenThoughItsAccountWasAlreadyRead() throws Exception {
+        User account = account("cached-lock");
+        String wrong = "definitely-not-the-password";
+
+        call(tokenFor(account)).andExpect(status().isOk());
+
+        for (int attempt = 0; attempt < LoginAttemptListener.LOCKOUT_THRESHOLD; attempt++) {
+            mockMvc
+                .perform(
+                    post("/api/authenticate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            "{\"username\":\"" + account.getLogin() + "\",\"password\":\"" + wrong + "\",\"rememberMe\":false}"
+                        )
+                )
+                .andExpect(status().isUnauthorized());
+        }
+
+        assertThat(userRepository.findOneByLogin(account.getLogin()).orElseThrow().getLockedAt())
+            .as("the account really is locked in the database")
+            .isNotNull();
+
+        mockMvc
+            .perform(
+                post("/api/authenticate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        "{\"username\":\"" + account.getLogin() + "\",\"password\":\"admin\",\"rememberMe\":false}"
+                    )
+            )
+            .andExpect(status().isUnauthorized());
     }
 
     private ResultActions call(String token) throws Exception {

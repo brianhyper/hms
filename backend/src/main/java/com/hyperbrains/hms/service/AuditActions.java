@@ -104,6 +104,12 @@ public final class AuditActions {
     /** A lock goes on by itself after repeated failures; releasing one is always a person's decision. */
     public static final String USER_LOCKED = "USER_LOCKED";
     public static final String USER_UNLOCKED = "USER_UNLOCKED";
+    /**
+     * The lock ran out by itself. Its own action rather than {@code USER_UNLOCKED}, because "the window passed" and
+     * "an administrator decided to let them in" are different things to read in a trail — and the difference is
+     * exactly what somebody auditing a lockout wants to know.
+     */
+    public static final String USER_LOCK_EXPIRED = "USER_LOCK_EXPIRED";
 
     private AuditActions() {}
 }

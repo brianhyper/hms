@@ -39,6 +39,29 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findAllByIdNotNullAndActivatedIsTrue(Pageable pageable);
 
     /**
+     * The account state that decides whether a sign-in is allowed, read straight from the row.
+     *
+     * <p>Deliberately not the account the rest of the sign-in path loads: that one is served from the
+     * {@code usersByLogin} cache, and the only eviction in the application is in {@code UserService}. The counting
+     * listener writes a lock through this repository, so the cached copy went on saying the account was open — the
+     * lock did nothing at all until the cache expired, which is an hour, and the same in reverse for an
+     * administrator releasing one. A scalar projection is not cached, so the controls see what was stored, by
+     * whoever stored it.
+     */
+    interface SignInState {
+        boolean isActivated();
+
+        Instant getSessionsValidFrom();
+
+        Instant getLockedAt();
+    }
+
+    @Query(
+        "select user.activated as activated, user.sessionsValidFrom as sessionsValidFrom, user.lockedAt as lockedAt from User user where user.login = :login"
+    )
+    Optional<SignInState> findSignInStateByLogin(@Param("login") String login);
+
+    /**
      * When a request last arrived on this account's session, read straight from the row.
      *
      * <p>Deliberately not the account the session filter otherwise loads: that one is served from the

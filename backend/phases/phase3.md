@@ -46,7 +46,7 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 |---|---|---|---|
 | S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
-| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation, lockout and idle timeout delivered**; forced first-login change and one-time reset tokens **open** |
+| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation, the lockout with its auto-release, and the idle timeout are delivered**; forced first-login change and one-time reset tokens **open** |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **delivered** — the read is named as a read and writes are refused outright (`7d75e39`) |
 | S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
 | S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
@@ -66,8 +66,14 @@ conversation. Each one names what it overrides.
    audit row stays, the manual release stays, and HR is to be told in one sentence before this ships. A per-IP cap
    is not the answer: the whole hospital sits behind one address.
 2. **Revocation freshness: investigated, and the cache suspicion refuted** (`7d75e39`). `UserService` evicts
-   `usersByLogin` on update, so the control reads a fresh account by design. `SessionRevocationCacheIT` now locks
-   that in.
+   `usersByLogin` on update, so the control reads a fresh account. `SessionRevocationCacheIT` proves it survives a
+   **separate persistence context** — which is what a later request in its own transaction does. **It does NOT prove
+   it survives a second node:** Ehcache is in-process, so the eviction is local and another node would keep a stale
+   account for up to 3600 seconds. That test would not catch a cache swap either; treating it as a guard against one
+   is an overclaim that was in the first commit message and is corrected here (the message itself is left alone —
+   see below).
+   **Handoff line: revocation freshness depends on a single-node local cache. Moving to multiple nodes requires a
+   shared cache, or a stamp read that bypasses the cache.** One home server today, so it is not a live risk.
 3. **Reactivation is fixed, and the `@Disabled` test is gone** (`7d75e39`). The cause was a token's `iat` being
    whole seconds against a microsecond stamp, so a sign-in in the same second as the revocation compared as older
    than it. Nothing in the suite is disabled any more (`Skipped: 0`).
@@ -84,6 +90,16 @@ conversation. Each one names what it overrides.
    `@WithMockUser` almost everywhere, which is what let a broken account lookup ship unnoticed.
 9. **The lock that outlived its test transaction stays unexplained**, and is recorded as such so nobody invents a
    mechanism for it.
+10. **The sign-in lock was doing nothing at all on a warm cache, and that is fixed.** Found on 2026-10-01 while
+   testing the auto-release: the counting listener writes a lock through the repository, and the only cache eviction
+   in the application is in `UserService`, so the sign-in path went on reading a cached account that said "not
+   locked" — for up to the cache's 3600-second life. The test that found it is non-transactional, because inside one
+   transaction the cached object is the one the listener mutated and the fault cannot show itself. **Proof: `expected
+   <401> but was <200>` on a locked account.** The release path was wrong in the same way, in the other direction.
+   The fix is systemic rather than three evictions: the state that decides whether a sign-in is allowed (`activated`,
+   `sessionsValidFrom`, `lockedAt`) is now read from the row through a projection, by both the sign-in path and the
+   session filter, so the cache serves identity and credentials only. The cache remains a performance device; it no
+   longer decides anything.
 
 **A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is
 planned work, however finished it reads. This column exists because the table was read as a delivery list once

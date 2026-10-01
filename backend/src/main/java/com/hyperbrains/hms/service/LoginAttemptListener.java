@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.service;
 
 import com.hyperbrains.hms.domain.User;
+import com.hyperbrains.hms.security.SignInLockout;
 import com.hyperbrains.hms.repository.UserRepository;
 import java.time.Instant;
 import java.util.Locale;
@@ -64,16 +65,22 @@ public class LoginAttemptListener {
         }
 
         User user = maybeUser.orElseThrow();
-        if (user.getLockedAt() != null) {
-            // Already locked. The attempt is refused before the password is even looked at, so counting it would
-            // only make the number meaningless for whoever reads the account afterwards.
+        Instant now = Instant.now();
+        if (SignInLockout.hasRunOut(user.getLockedAt(), now)) {
+            // The window is over, and nothing cleared the row because nothing runs on a timer: this attempt is the
+            // first moment the answer mattered, so this is where the lock is released.
+            releaseExpiredLock(user);
+        } else if (user.getLockedAt() != null) {
+            // Still locked. The attempt is refused before the password is even looked at, so counting it would let
+            // whoever is guessing hold the account locked for ever — every wrong password would start the window
+            // again. A lock is a fixed quarter of an hour, not a moving one.
             return;
         }
         user.setFailedAttempts(user.getFailedAttempts() + 1);
 
         boolean becameLocked = user.getFailedAttempts() >= LOCKOUT_THRESHOLD && user.getLockedAt() == null;
         if (becameLocked) {
-            user.setLockedAt(Instant.now());
+            user.setLockedAt(now);
         }
         userRepository.save(user);
 
@@ -87,17 +94,52 @@ public class LoginAttemptListener {
                     user.getLogin() +
                     " after " +
                     user.getFailedAttempts() +
-                    " failed attempts; an administrator has to release it"
+                    " failed attempts; it releases itself after " +
+                    SignInLockout.LOCK_WINDOW.toMinutes() +
+                    " minutes, and an administrator can release it sooner"
                 )
             );
         }
     }
 
+    /**
+     * Clears a lock whose window has run out, and says so in the trail.
+     *
+     * <p>The count starts again from zero, which is what makes the window a rate limit rather than a permanent bar:
+     * the next five failures lock the account again, for another quarter of an hour.
+     */
+    private void releaseExpiredLock(User user) {
+        user.setLockedAt(null);
+        user.setFailedAttempts(0);
+        recordRanOut(user);
+    }
+
+    /** The one place the auto-release is written to the trail, whether a sign-in or a failed attempt did the releasing. */
+    private void recordRanOut(User user) {
+        LOG.info("Sign-in lock for {} ran out after {} minutes", user.getLogin(), SignInLockout.LOCK_WINDOW.toMinutes());
+        auditLogService.record(
+            AuditLogService.Entry.of(AuditActions.USER_LOCK_EXPIRED, "User", user.getId()).withDetails(
+                "The sign-in lock for " +
+                user.getLogin() +
+                " ran out after " +
+                SignInLockout.LOCK_WINDOW.toMinutes() +
+                " minutes; the account is usable again"
+            )
+        );
+    }
+
     private void clearFailures(String login) {
         userRepository
             .findOneByLogin(login.toLowerCase(Locale.ENGLISH))
-            .filter(user -> user.getFailedAttempts() > 0)
+            .filter(user -> user.getFailedAttempts() > 0 || user.getLockedAt() != null)
             .ifPresent(user -> {
+                if (user.getLockedAt() != null) {
+                    // Reaching a success at all means the lock was no longer in force: a live lock refuses the sign-in
+                    // before the password is looked at. So the window ran out, and this is where that is recorded —
+                    // the release nobody had to ask for.
+                    user.setLockedAt(null);
+                    recordRanOut(user);
+                }
                 user.setFailedAttempts(0);
                 userRepository.save(user);
             });

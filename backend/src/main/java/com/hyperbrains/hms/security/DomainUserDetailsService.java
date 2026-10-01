@@ -3,6 +3,7 @@ package com.hyperbrains.hms.security;
 import com.hyperbrains.hms.domain.Authority;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.UserRepository;
+import java.time.Instant;
 import java.util.*;
 import org.hibernate.validator.internal.constraintvalidators.bv.EmailValidator;
 import org.slf4j.Logger;
@@ -38,24 +39,42 @@ public class DomainUserDetailsService implements UserDetailsService {
         if (new EmailValidator().isValid(login, null)) {
             return userRepository
                 .findOneWithAuthoritiesByEmailIgnoreCase(login)
-                .map(user -> createSpringSecurityUser(login, user))
+                // The account's own login, not the address the caller typed: the state this reads is keyed on login, and
+                // passing the email here found nothing and refused a sign-in by email outright. It was harmless while
+                // the argument was only used in a message.
+                .map(user -> createSpringSecurityUser(user.getLogin(), user))
                 .orElseThrow(() -> new UsernameNotFoundException("User with email " + login + " was not found in the database"));
         }
 
         String lowercaseLogin = login.toLowerCase(Locale.ENGLISH);
         return userRepository
             .findOneWithAuthoritiesByLogin(lowercaseLogin)
-            .map(user -> createSpringSecurityUser(lowercaseLogin, user))
+            .map(user -> createSpringSecurityUser(user.getLogin(), user))
             .orElseThrow(() -> new UsernameNotFoundException("User " + lowercaseLogin + " was not found in the database"));
     }
 
-    private org.springframework.security.core.userdetails.User createSpringSecurityUser(String lowercaseLogin, User user) {
-        if (!user.isActivated()) {
-            throw new UserNotActivatedException("User " + lowercaseLogin + " was not activated");
+    private org.springframework.security.core.userdetails.User createSpringSecurityUser(String login, User user) {
+        // The account's security state is read from the row rather than taken from the user above, which arrived
+        // through the usersByLogin cache. That cache is evicted by UserService alone, and the lockout listener writes
+        // a lock through the repository: reading the cached copy meant five wrong passwords left this path seeing
+        // "not locked", so the lock did nothing until the cache expired — an hour — and a release was equally
+        // invisible in the other direction. A projection is not cached, so a lock, a release or a deactivation is
+        // seen as soon as it is stored, whoever stored it.
+        UserRepository.SignInState state = userRepository
+            .findSignInStateByLogin(login)
+            .orElseThrow(() -> new UsernameNotFoundException("User " + login + " was not found in the database"));
+
+        if (!state.isActivated()) {
+            throw new UserNotActivatedException("User " + login + " was not activated");
         }
-        if (user.getLockedAt() != null) {
-            // A lock stops the password being tried at all, so a correct password does not get past it either.
-            // Only an explicit unlock clears it: no timer, per Phase 3.
+        if (SignInLockout.isInForce(state.getLockedAt(), Instant.now())) {
+            // A lock stops the password being tried at all, so a correct password does not get past it either, and
+            // the refusal is identical whichever password was sent.
+            //
+            // It is a window rather than a bar: fifteen minutes after it went on it stops being in force and the
+            // account works again without anybody being asked. The row is tidied the next time the account is
+            // touched — by a sign-in that succeeds, or by the next failed attempt — because that is the only moment
+            // the answer matters; a timer would exist only to keep a column looking neat.
             //
             // Reported as bad credentials rather than as a locked account, deliberately. This answer goes to
             // whoever is asking, who is by definition not signed in: "this account is locked" would confirm
