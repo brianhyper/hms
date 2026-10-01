@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -107,10 +108,16 @@ public class SessionValidityFilter extends OncePerRequestFilter {
             return true;
         }
         Instant validFrom = account.getSessionsValidFrom();
-        // Strictly before, so a token issued in the same second as the revocation is not thrown away by a clock
-        // that has not ticked yet. The window is a second wide and it is on the permissive side of a control
-        // whose alternative is refusing a legitimate new sign-in.
-        return validFrom != null && jwt.getIssuedAt() != null && jwt.getIssuedAt().isBefore(validFrom);
+        if (validFrom == null || jwt.getIssuedAt() == null) {
+            return false;
+        }
+        // Compared at second precision, because the token and the column do not share one. A JWT's `iat` is a whole
+        // number of seconds while this stamp carries microseconds, so a token minted in the very second the account
+        // was switched off is a fraction *before* the stamp and was refused — which is why switching an account off
+        // and on again appeared to lock the person out, and why the test that said so failed only when it ran fast
+        // enough. Truncating the stamp makes the boundary the permissive one this control wants: a token issued in
+        // the same second survives, one issued a second earlier does not.
+        return jwt.getIssuedAt().isBefore(validFrom.truncatedTo(ChronoUnit.SECONDS));
     }
 
     private static Optional<Jwt> currentToken() {

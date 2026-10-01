@@ -124,25 +124,31 @@ public class SecurityConfiguration {
                     // lands (see phases/phase1.md "Corrections" and the state machine).
                     // ===============================================================
 
+                    // ---- Reference data: Super Admin's alone (S3.9) ----
+                    // Prices, codes and clinical catalogues decide what the hospital charges and what it can do.
+                    // Administration runs the hospital; it does not edit the catalogue. These five rows admitted
+                    // ADMIN until S3.9 audited them. Reads stay as wide as they were: the desk needs the service
+                    // list, the lab needs its tests, and a widened read was a deliberate decision each time.
+
                     // ---- Department (catalogue) ----
                     .requestMatchers(HttpMethod.GET, "/api/departments", "/api/departments/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/departments", "/api/departments/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/departments", "/api/departments/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- Diagnosis (catalogue) ----
                     .requestMatchers(HttpMethod.GET, "/api/diagnoses", "/api/diagnoses/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/diagnoses", "/api/diagnoses/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/diagnoses", "/api/diagnoses/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- HospitalService (price catalogue) ----
                     .requestMatchers(HttpMethod.GET, "/api/hospital-services", "/api/hospital-services/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/hospital-services", "/api/hospital-services/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/hospital-services", "/api/hospital-services/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- LabTest (price catalogue) ----
                     .requestMatchers(HttpMethod.GET, "/api/lab-tests", "/api/lab-tests/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/lab-tests", "/api/lab-tests/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/lab-tests", "/api/lab-tests/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- RadiologyExam (price catalogue) ----
                     .requestMatchers(HttpMethod.GET, "/api/radiology-exams", "/api/radiology-exams/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
-                    .requestMatchers("/api/radiology-exams", "/api/radiology-exams/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/radiology-exams", "/api/radiology-exams/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- Patient (identifying details are read by every clinical role) ----
                     .requestMatchers(HttpMethod.GET, "/api/patients", "/api/patients/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, LAB, RADIOLOGY, PHARMACY, FINANCE, ADMIN, SUPER_ADMIN)
@@ -272,7 +278,11 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/payments", "/api/payments/**").hasAnyAuthority(SUPER_ADMIN)
 
                     // ---- AuditLog: internal record, admin eyes only, and never writable ----
-                    .requestMatchers("/api/audit-logs", "/api/audit-logs/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    // The read is named as a read, and the row used to be method-agnostic: a write route appearing
+                    // on this resource later would have been admitted by that row rather than refused. The trail is
+                    // written by the application, never through the API, so writes are refused outright.
+                    .requestMatchers(HttpMethod.GET, "/api/audit-logs", "/api/audit-logs/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/audit-logs", "/api/audit-logs/**").denyAll()
 
                     // ---- Patient registration actions ----
                     // A pre-save duplicate check is a read: nurses and doctors need it for intake too.

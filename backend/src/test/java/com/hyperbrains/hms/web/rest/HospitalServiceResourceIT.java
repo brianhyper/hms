@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @IntegrationTest
 @AutoConfigureMockMvc
-@WithMockUser(authorities = AuthoritiesConstants.ADMIN)
+@WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
 class HospitalServiceResourceIT {
 
     private static final String DEFAULT_NAME = "AAAAAAAAAA";
