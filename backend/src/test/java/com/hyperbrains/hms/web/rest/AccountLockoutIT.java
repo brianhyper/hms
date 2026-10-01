@@ -112,16 +112,32 @@ class AccountLockoutIT {
 
     @Test
     void anAccountThatWasNeverActivatedIsRefusedRatherThanCrashing() throws Exception {
-        // The precedent this lockout was meant to follow. An account that exists but is not usable should be
-        // refused, and if this ever answers 500 then the same shape of bug is live in shipped code — so it is
-        // asserted rather than assumed, since the whole reason for the assertion is that nobody was sure. It did
-        // answer 500: the exception raised for a not-yet-activated account was wrapped by Spring before the error
-        // handler saw it, and that wrapper carries no status of its own. This assertion is what found it.
+        // The precedent the lockout followed, and the bug it was hiding: an account that exists but is not usable was
+        // answered with a 500, because the exception raised for it did not survive the wrap Spring puts around
+        // anything the user-details service throws. Asserted rather than assumed, since nobody was sure — and
+        // asserted against the wrong-password answer, because an anonymous caller must not be able to tell the two
+        // apart, let alone tell that the account exists.
         User neverActivated = newAccount();
         neverActivated.setActivated(false);
         userRepository.saveAndFlush(neverActivated);
 
-        signIn(neverActivated, PASSWORD).andExpect(status().isUnauthorized());
+        String anAccountThatCannotSignIn = signIn(neverActivated, PASSWORD)
+            .andExpect(status().isUnauthorized())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String aWrongPassword = signIn(newAccount(), "definitely-not-the-password")
+            .andExpect(status().isUnauthorized())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        assertThat(anAccountThatCannotSignIn)
+            .as("the answer does not mention activation, or anything else about the account")
+            .doesNotContainIgnoringCase("activat");
+        assertThat(anAccountThatCannotSignIn)
+            .as("and nobody can tell it from the answer to a wrong password")
+            .isEqualTo(aWrongPassword);
     }
 
     @Test

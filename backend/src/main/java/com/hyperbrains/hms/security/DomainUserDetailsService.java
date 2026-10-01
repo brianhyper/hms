@@ -65,7 +65,15 @@ public class DomainUserDetailsService implements UserDetailsService {
             .orElseThrow(() -> new UsernameNotFoundException("User " + login + " was not found in the database"));
 
         if (!state.isActivated()) {
-            throw new UserNotActivatedException("User " + login + " was not activated");
+            // The same refusal as a wrong password, byte for byte, for the same reason the lock uses it: this answer
+            // goes to whoever is asking, who is by definition not signed in, and "this account was not activated"
+            // confirms that the account exists. It also means the three refusals an anonymous caller can reach —
+            // unknown login, wrong password, and an account that cannot sign in yet — read identically from outside.
+            //
+            // JHipster's UserNotActivatedException used to carry this. Nothing in production throws it now, but the
+            // type stays in the translator's walk: a refusal that arrives that way should still be answered as a
+            // refusal rather than as a server error.
+            throw new BadCredentialsException("Bad credentials");
         }
         if (SignInLockout.isInForce(state.getLockedAt(), Instant.now())) {
             // A lock stops the password being tried at all, so a correct password does not get past it either, and

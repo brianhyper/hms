@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.transaction.annotation.Transactional;
@@ -127,9 +128,16 @@ class DomainUserDetailsServiceIT {
         assertThat(userDetails.getUsername()).isEqualTo(USER_ONE_LOGIN);
     }
 
+    /**
+     * An account that exists but cannot sign in is refused as a bad password, not as itself.
+     *
+     * <p>Reported through {@link BadCredentialsException} so an anonymous caller cannot tell the three refusals
+     * apart — an unknown login, a wrong password, and this — nor learn from a 401 that the account exists. What the
+     * caller actually sees is asserted where the two answers are compared byte for byte: {@code AccountLockoutIT}.
+     */
     @Test
-    void assertThatUserNotActivatedExceptionIsThrownForNotActivatedUsers() {
-        assertThatExceptionOfType(UserNotActivatedException.class).isThrownBy(() ->
+    void assertThatANotActivatedUserIsRefusedAsABadPassword() {
+        assertThatExceptionOfType(BadCredentialsException.class).isThrownBy(() ->
             domainUserDetailsService.loadUserByUsername(USER_THREE_LOGIN)
         );
     }
