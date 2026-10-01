@@ -47,13 +47,43 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 | S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
 | S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation, lockout and idle timeout delivered**; forced first-login change and one-time reset tokens **open** |
-| S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **part: account events are audited**; the audit read rows are still method-agnostic |
+| S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **delivered** — the read is named as a read and writes are refused outright (`7d75e39`) |
 | S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
 | S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
 | S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **part: bill lines delivered** (`691e1fa`); nine services open |
 | S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | not started |
 | S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **delivered** — it is Phase 4's P4.0, built when Phase 4 started |
-| S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 | **part: the catch-all test is delivered** (`483f037`) and the two holes it found are closed; reference-data rows not yet audited |
+| S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 | **delivered** — the catch-all test (`483f037`), its two holes closed, and the five reference-data write rows that still admitted ADMIN closed to Super Admin (`7d75e39`) |
+
+### Rulings (client and engineering, 2026-10-01)
+
+These change the plan or reverse a decision already taken, so they are recorded here rather than left in a
+conversation. Each one names what it overrides.
+
+1. **The lockout gets an auto-release, after 15 minutes** — overriding the original "no timer" rule. The client set
+   that rule without the consequence on the table: five wrong passwords lock any named account, only a Super Admin
+   could release it, and nothing expired, so a script could lock every known login and shut the hospital out. The
+   audit row stays, the manual release stays, and HR is to be told in one sentence before this ships. A per-IP cap
+   is not the answer: the whole hospital sits behind one address.
+2. **Revocation freshness: investigated, and the cache suspicion refuted** (`7d75e39`). `UserService` evicts
+   `usersByLogin` on update, so the control reads a fresh account by design. `SessionRevocationCacheIT` now locks
+   that in.
+3. **Reactivation is fixed, and the `@Disabled` test is gone** (`7d75e39`). The cause was a token's `iat` being
+   whole seconds against a microsecond stamp, so a sign-in in the same second as the revocation compared as older
+   than it. Nothing in the suite is disabled any more (`Skipped: 0`).
+4. **The idle timeout is per account, not per session, and that is accepted for v1.0.** It bounds an unattended
+   workstation, not a stolen token; the bound on a stolen token is the token's lifetime.
+5. **Two 401 shapes are to be handed to the frontend developer now**, so one handler covers both.
+6. **Staff records cannot be deleted, and erasure is deferred.** The likely shape is a Super Admin anonymise action
+   that blanks the identity fields and keeps the row, because a deleted record breaks audit and payroll references.
+   Whether the Employment Act requires keeping employment records after termination needs confirming before
+   anything is promised to anyone. Recorded as a handoff gap.
+7. **`/api/register` is to be disabled** once nothing legitimate calls it, and the not-activated answer made the
+   same generic refusal as everything else — it currently confirms to an anonymous caller that the account exists.
+8. **Real sign-in tests are a standing requirement, not a one-off.** The suite authenticates with
+   `@WithMockUser` almost everywhere, which is what let a broken account lookup ship unnoticed.
+9. **The lock that outlived its test transaction stays unexplained**, and is recorded as such so nobody invents a
+   mechanism for it.
 
 **A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is
 planned work, however finished it reads. This column exists because the table was read as a delivery list once
