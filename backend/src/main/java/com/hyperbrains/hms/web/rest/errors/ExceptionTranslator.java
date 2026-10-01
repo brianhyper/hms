@@ -7,9 +7,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 import org.jspecify.annotations.Nullable;
@@ -295,13 +298,29 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         return isSignInRefusal(err) ? HttpStatus.UNAUTHORIZED : null;
     }
 
-    private static boolean isSignInRefusal(Throwable err) {
+    /**
+     * Whether this exception, or anything it wraps, is a refused sign-in.
+     *
+     * <p>Walks the chain with a visited set rather than following {@code getCause()} until it runs out. An exception
+     * can name another that names it back, and following a chain like that never ends — a request that should have
+     * been refused would hang instead, which is a worse failure than the one this is looking for. Identity, not
+     * equality: what matters is which object points at which.
+     *
+     * <p>Package-private so the cycling cases can be built directly. Two of them cannot arrive through any endpoint,
+     * and the property being tested is that the walk always terminates.
+     */
+    static boolean isSignInRefusal(Throwable err) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Throwable current = err; current != null; current = current.getCause()) {
+            if (!seen.add(current)) {
+                // The chain loops back on itself. Nothing further down can be news, and a chain built wrongly is a
+                // bug rather than a refusal, so it is left to fall through to the 500 the translator gives anything
+                // it cannot map.
+                LOG.warn("Exception cause chain loops back on itself; treating it as unmapped", current);
+                return false;
+            }
             if (current instanceof BadCredentialsException || current instanceof UserNotActivatedException) {
                 return true;
-            }
-            if (current.getCause() == current) {
-                break;
             }
         }
         return false;
