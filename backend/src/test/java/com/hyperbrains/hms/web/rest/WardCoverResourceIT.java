@@ -298,11 +298,11 @@ class WardCoverResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(wardCoverDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the WardCover in the database
+        // Validate the WardCover in the database: the period did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedWardCoverToMatchAllProperties(updatedWardCover);
+        assertThat(getPersistedWardCover(wardCover).getCoversFrom()).isEqualTo(DEFAULT_COVERS_FROM);
     }
 
     @Test
@@ -387,15 +387,11 @@ class WardCoverResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedWardCover))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the WardCover in the database
-
+        // Validate the WardCover in the database: the period did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertWardCoverUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedWardCover, wardCover),
-            getPersistedWardCover(wardCover)
-        );
+        assertThat(getPersistedWardCover(wardCover).getCoversFrom()).isEqualTo(DEFAULT_COVERS_FROM);
     }
 
     @Test
@@ -418,12 +414,13 @@ class WardCoverResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedWardCover))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the WardCover in the database
-
+        // Validate the WardCover in the database: refused whole, so even the note was not written.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertWardCoverUpdatableFieldsEquals(partialUpdatedWardCover, getPersistedWardCover(partialUpdatedWardCover));
+        WardCover reloaded = getPersistedWardCover(wardCover);
+        assertThat(reloaded.getCoversFrom()).isEqualTo(DEFAULT_COVERS_FROM);
+        assertThat(reloaded.getNote()).isEqualTo(DEFAULT_NOTE);
     }
 
     @Test

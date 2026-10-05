@@ -375,11 +375,11 @@ class DiagnosticOrderResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(diagnosticOrderDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the DiagnosticOrder in the database
+        // Validate the DiagnosticOrder in the database: the order did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedDiagnosticOrderToMatchAllProperties(updatedDiagnosticOrder);
+        assertThat(getPersistedDiagnosticOrder(diagnosticOrder).getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
@@ -464,15 +464,13 @@ class DiagnosticOrderResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedDiagnosticOrder))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the DiagnosticOrder in the database
-
+        // Validate the DiagnosticOrder in the database: the order did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertDiagnosticOrderUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedDiagnosticOrder, diagnosticOrder),
-            getPersistedDiagnosticOrder(diagnosticOrder)
-        );
+        DiagnosticOrder reloaded = getPersistedDiagnosticOrder(diagnosticOrder);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getTestName()).isEqualTo(DEFAULT_TEST_NAME);
     }
 
     @Test
@@ -500,15 +498,14 @@ class DiagnosticOrderResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedDiagnosticOrder))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the DiagnosticOrder in the database
-
+        // Validate the DiagnosticOrder in the database: refused whole, so the notes were not written either.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertDiagnosticOrderUpdatableFieldsEquals(
-            partialUpdatedDiagnosticOrder,
-            getPersistedDiagnosticOrder(partialUpdatedDiagnosticOrder)
-        );
+        DiagnosticOrder reloaded = getPersistedDiagnosticOrder(diagnosticOrder);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getTestName()).isEqualTo(DEFAULT_TEST_NAME);
+        assertThat(reloaded.getNotes()).isEqualTo(DEFAULT_NOTES);
     }
 
     @Test

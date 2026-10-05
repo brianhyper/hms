@@ -292,11 +292,11 @@ class PrescriptionResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(prescriptionDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Prescription in the database
+        // Validate the Prescription in the database: the status did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedPrescriptionToMatchAllProperties(updatedPrescription);
+        assertThat(getPersistedPrescription(prescription).getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
@@ -381,15 +381,11 @@ class PrescriptionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPrescription))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Prescription in the database
-
+        // Validate the Prescription in the database: the status did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPrescriptionUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedPrescription, prescription),
-            getPersistedPrescription(prescription)
-        );
+        assertThat(getPersistedPrescription(prescription).getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
     @Test
@@ -412,12 +408,13 @@ class PrescriptionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPrescription))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the Prescription in the database
-
+        // Validate the Prescription in the database: refused whole, so the source was not written either.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPrescriptionUpdatableFieldsEquals(partialUpdatedPrescription, getPersistedPrescription(partialUpdatedPrescription));
+        Prescription reloaded = getPersistedPrescription(prescription);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getPrescribingSource()).isEqualTo(DEFAULT_PRESCRIBING_SOURCE);
     }
 
     @Test

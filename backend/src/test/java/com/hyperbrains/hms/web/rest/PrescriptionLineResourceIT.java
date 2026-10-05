@@ -307,11 +307,11 @@ class PrescriptionLineResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(prescriptionLineDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the PrescriptionLine in the database
+        // Validate the PrescriptionLine in the database: what the prescriber decided did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedPrescriptionLineToMatchAllProperties(updatedPrescriptionLine);
+        assertThat(getPersistedPrescriptionLine(prescriptionLine).getDosage()).isEqualTo(DEFAULT_DOSAGE);
     }
 
     @Test
@@ -396,15 +396,11 @@ class PrescriptionLineResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPrescriptionLine))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the PrescriptionLine in the database
-
+        // Validate the PrescriptionLine in the database: what the prescriber decided did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPrescriptionLineUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedPrescriptionLine, prescriptionLine),
-            getPersistedPrescriptionLine(prescriptionLine)
-        );
+        assertThat(getPersistedPrescriptionLine(prescriptionLine).getDosage()).isEqualTo(DEFAULT_DOSAGE);
     }
 
     @Test
@@ -427,15 +423,13 @@ class PrescriptionLineResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPrescriptionLine))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the PrescriptionLine in the database
-
+        // Validate the PrescriptionLine in the database: what the prescriber decided did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPrescriptionLineUpdatableFieldsEquals(
-            partialUpdatedPrescriptionLine,
-            getPersistedPrescriptionLine(partialUpdatedPrescriptionLine)
-        );
+        PrescriptionLine reloaded = getPersistedPrescriptionLine(prescriptionLine);
+        assertThat(reloaded.getDosage()).isEqualTo(DEFAULT_DOSAGE);
+        assertThat(reloaded.getQuantity()).isEqualTo(DEFAULT_QUANTITY);
     }
 
     @Test
