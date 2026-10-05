@@ -212,8 +212,10 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
                     .map(line ->
                         new DispenseRecordDTO.DispensedItemDTO(
                             line.getPrescriptionLine().getId(),
-                            line.getDrug().getName(),
-                            line.getDrug().getUnit(),
+                            // What was handed over, at the price and name that applied then, rather than what the
+                            // catalogue entry says now — this is the history of a hand-over that happened.
+                            DrugSnapshot.nameToShow(line),
+                            DrugSnapshot.unitToShow(line),
                             line.getQuantity(),
                             line.getSubstitutionReason()
                         )

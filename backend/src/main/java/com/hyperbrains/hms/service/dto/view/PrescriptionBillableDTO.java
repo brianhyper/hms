@@ -2,6 +2,7 @@ package com.hyperbrains.hms.service.dto.view;
 
 import com.hyperbrains.hms.domain.PrescriptionLine;
 import com.hyperbrains.hms.domain.enumeration.PrescriptionStatus;
+import com.hyperbrains.hms.service.rules.DrugSnapshot;
 import java.io.Serializable;
 import java.math.BigDecimal;
 
@@ -37,12 +38,13 @@ public class PrescriptionBillableDTO implements Serializable {
         dto.visitId = visitId;
         dto.lineId = line.getId();
         dto.quantity = line.getQuantity();
-        if (line.getDrug() != null) {
-            dto.drugName = line.getDrug().getName();
-            dto.unitPrice = line.getDrug().getPrice();
-            if (line.getDrug().getPrice() != null && line.getQuantity() != null) {
-                dto.amount = line.getDrug().getPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
-            }
+        // What was prescribed, at the price that applied then: Finance bills the treatment that was given, and a
+        // reprice in the catalogue must not restate an invoice that has already gone out. Recorded values first, with
+        // the catalogue entry reached only for lines written before the snapshot was kept.
+        dto.drugName = DrugSnapshot.nameToShow(line);
+        dto.unitPrice = DrugSnapshot.priceToShow(line);
+        if (dto.unitPrice != null && line.getQuantity() != null) {
+            dto.amount = dto.unitPrice.multiply(BigDecimal.valueOf(line.getQuantity()));
         }
         if (line.getPrescription() != null) {
             dto.status = line.getPrescription().getStatus();

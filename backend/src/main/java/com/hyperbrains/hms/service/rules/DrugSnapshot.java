@@ -68,6 +68,10 @@ public final class DrugSnapshot {
         return line.getDrugName() != null ? line.getDrugName() : nameOf(line.getDrug());
     }
 
+    public static String unitToShow(DispenseLine line) {
+        return line.getDrugUnit() != null ? line.getDrugUnit() : unitOf(line.getDrug());
+    }
+
     private static String nameOf(Drug drug) {
         return drug == null ? null : drug.getName();
     }
