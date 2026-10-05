@@ -396,6 +396,56 @@ public class UserService {
     }
 
     /**
+     * Sets a password for somebody else to use once, and returns it so that it can be handed over.
+     *
+     * <p>This is the case the forced change exists for: a password chosen on somebody's behalf is one its owner did
+     * not choose, and they have to replace it before the account will do anything. The password is generated here
+     * rather than accepted from the caller, so an administrator cannot set a weak one, cannot set one they use
+     * elsewhere, and cannot type the same one for a whole ward — and it is returned once, never read back.
+     *
+     * <p>Three things stop being true when this runs, and all three matter. The account's open sessions end, because
+     * handing somebody a new password is how an account is taken away from whoever was using it — with the one-second
+     * window that every use of that control has, since a token records its age in whole seconds and cannot be told
+     * apart from one issued in the same second; see {@code SessionValidityFilter.wasEnded}. A reset link that
+     * was already sent stops working, because otherwise the older link sets the password instead and the handover
+     * never happened. And the password stays out of the audit trail, which records that this was done, by whom, and
+     * why — never what it was.
+     *
+     * <p>The sign-in lock is deliberately left alone. Releasing one is its own decision with its own reason on
+     * {@link #unlock}, so an account given a password here is still locked until somebody releases it — which is a
+     * real wrinkle for a locked account, and better than a route that quietly clears locks as a side effect.
+     */
+    public String setInitialPassword(String login, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw BusinessRuleViolationException.of(
+                "initialPasswordReasonRequired",
+                "user",
+                "Setting a password for somebody else requires a reason"
+            );
+        }
+
+        User user = userRepository
+            .findOneByLogin(login.toLowerCase(Locale.ENGLISH))
+            .orElseThrow(() -> BusinessRuleViolationException.of("userNotFound", "user", "No account with login " + login));
+
+        String password = RandomUtil.generatePassword();
+        user.setPassword(passwordEncoder.encode(password));
+        // Chosen for them rather than by them, so nothing can be done with the account until it is replaced.
+        user.setPasswordChangeRequired(true);
+        user.setResetKey(null);
+        user.setResetDate(null);
+        user.setSessionsValidFrom(Instant.now());
+        userRepository.save(user);
+        this.clearUserCaches(user);
+        auditLogService.record(
+            AuditLogService.Entry.of(AuditActions.PASSWORD_CHANGED, "User", user.getId())
+                .withReason(reason)
+                .withDetails("A one-time password was set for " + user.getLogin() + " by an administrator")
+        );
+        return password;
+    }
+
+    /**
      * Deletes an account outright.
      *
      * <p><strong>Not reachable from any route, and that is the point.</strong> Phase 3 requires that accounts

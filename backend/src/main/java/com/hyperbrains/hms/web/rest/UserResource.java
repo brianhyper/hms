@@ -5,6 +5,7 @@ import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
+import com.hyperbrains.hms.service.dto.view.InitialPasswordDTO;
 import com.hyperbrains.hms.service.dto.view.UnlockAccountRequestDTO;
 import com.hyperbrains.hms.service.MailService;
 import com.hyperbrains.hms.service.UserService;
@@ -223,6 +224,34 @@ public class UserResource {
         return ResponseEntity.ok()
             .headers(HeaderUtil.createAlert(applicationName, "The sign-in lock on " + login + " is released", login))
             .build();
+    }
+
+    /**
+     * {@code POST /admin/users/:login/initial-password} : sets a password for somebody else to use once.
+     *
+     * <p>This is how a person who has never chosen a password gets in: an administrator hands one over out of band,
+     * and it has to be replaced before the account will do anything else, because it is not a password its owner
+     * chose. The response is the only copy that exists — it is not mailed and never read back — so a copy that is
+     * lost is replaced by calling this again, which also ends any session opened with the previous one.
+     *
+     * <p>Super Admin only, like the rest of account management, and it needs a reason for the same purpose as the
+     * unlock route: the decision is reviewable afterwards, and the password itself is not in the trail.
+     *
+     * @param login the login whose password is being set.
+     * @param request carries the mandatory reason.
+     * @return {@code 200 (OK)} with the password, to be handed over out of band.
+     */
+    @PostMapping("/users/{login}/initial-password")
+    @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.SUPER_ADMIN + "\")")
+    public ResponseEntity<InitialPasswordDTO> setInitialPassword(
+        @PathVariable("login") @Pattern(regexp = Constants.LOGIN_REGEX) String login,
+        @Valid @RequestBody UnlockAccountRequestDTO request
+    ) {
+        LOG.debug("REST request to set an initial password for User: {}", login);
+        String password = userService.setInitialPassword(login, request.getReason());
+        return ResponseEntity.ok()
+            .headers(HeaderUtil.createAlert(applicationName, "A one-time password is set for " + login, login))
+            .body(new InitialPasswordDTO(password));
     }
 
     /**
