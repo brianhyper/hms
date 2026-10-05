@@ -25,6 +25,7 @@ import com.hyperbrains.hms.service.dto.view.PrescriptionBillableDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionLineRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionViewDTO;
 import com.hyperbrains.hms.service.rules.AdmissionLifecycle;
+import com.hyperbrains.hms.service.rules.DrugSnapshot;
 import com.hyperbrains.hms.service.rules.PrescriptionLifecycle;
 import com.hyperbrains.hms.service.rules.VisitLifecycle;
 import com.hyperbrains.hms.service.workflow.BillingService;
@@ -148,6 +149,9 @@ public class PrescriptionWorkflowServiceImpl implements PrescriptionWorkflowServ
             PrescriptionLine line = new PrescriptionLine();
             line.setPrescription(prescription);
             line.setDrug(reservedDrugs.get(i));
+            // What the drug is now, kept on the line for as long as the line exists: the catalogue entry can be
+            // renamed or repriced, and this prescription still has to say what was prescribed.
+            DrugSnapshot.onto(line, reservedDrugs.get(i));
             line.setDosage(requested.getDosage());
             line.setDuration(requested.getDuration());
             line.setQuantity(requested.getQuantity());

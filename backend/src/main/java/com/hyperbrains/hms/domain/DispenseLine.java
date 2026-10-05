@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
 
@@ -20,6 +21,28 @@ public class DispenseLine implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    /**
+     * The drug as it was when it was handed over, copied rather than read through {@link #drug}.
+     *
+     * <p>The catalogue entry can be renamed, repriced or reclassified afterwards, and a hand-over has to stay
+     * readable as what was actually given. Null on lines written before this was kept, which is the honest value:
+     * the catalogue of today is not what it was then.
+     */
+    @Size(max = 255)
+    @Column(name = "drug_name", length = 255)
+    private String drugName;
+
+    @Size(max = 50)
+    @Column(name = "drug_unit", length = 50)
+    private String drugUnit;
+
+    @Column(name = "drug_price", precision = 21, scale = 2)
+    private BigDecimal drugPrice;
+
+    @Size(max = 50)
+    @Column(name = "drug_classification", length = 50)
+    private String drugClassification;
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sequenceGenerator")
@@ -121,6 +144,38 @@ public class DispenseLine implements Serializable {
 
     public void setDrug(Drug drug) {
         this.drug = drug;
+    }
+
+    public String getDrugName() {
+        return this.drugName;
+    }
+
+    public void setDrugName(String drugName) {
+        this.drugName = drugName;
+    }
+
+    public String getDrugUnit() {
+        return this.drugUnit;
+    }
+
+    public void setDrugUnit(String drugUnit) {
+        this.drugUnit = drugUnit;
+    }
+
+    public BigDecimal getDrugPrice() {
+        return this.drugPrice;
+    }
+
+    public void setDrugPrice(BigDecimal drugPrice) {
+        this.drugPrice = drugPrice;
+    }
+
+    public String getDrugClassification() {
+        return this.drugClassification;
+    }
+
+    public void setDrugClassification(String drugClassification) {
+        this.drugClassification = drugClassification;
     }
 
     public DispenseLine drug(Drug drug) {

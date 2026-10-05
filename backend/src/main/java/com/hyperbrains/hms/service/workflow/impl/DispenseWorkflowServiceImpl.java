@@ -21,6 +21,7 @@ import com.hyperbrains.hms.service.dto.view.DispenseRecordDTO;
 import com.hyperbrains.hms.service.dto.view.DispenseRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionViewDTO;
 import com.hyperbrains.hms.service.rules.DispenseProgress;
+import com.hyperbrains.hms.service.rules.DrugSnapshot;
 import com.hyperbrains.hms.service.rules.PrescriptionLifecycle;
 import com.hyperbrains.hms.service.workflow.DispenseWorkflowService;
 import java.time.Instant;
@@ -157,6 +158,9 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
             dispenseLine.setPrescriptionLine(line);
             // No substitution in Phase 1: what is handed over is what was prescribed.
             dispenseLine.setDrug(line.getDrug());
+            // And what that drug was at this moment, kept on the line: the price and the class can change afterwards,
+            // and a hand-over has to stay readable as what was actually given.
+            DrugSnapshot.onto(dispenseLine, line.getDrug());
             dispenseLine.setQuantity(requested.getQuantity());
             dispenseLineRepository.save(dispenseLine);
 

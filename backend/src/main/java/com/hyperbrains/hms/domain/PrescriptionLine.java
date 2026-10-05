@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
 
@@ -49,6 +50,29 @@ public class PrescriptionLine implements Serializable {
     @ManyToOne(optional = false)
     @NotNull
     private Drug drug;
+
+    /**
+     * The drug as it was when this line was prescribed, copied rather than read through {@link #drug}.
+     *
+     * <p>A catalogue entry can be renamed, repriced or reclassified; without these four the prescription would
+     * afterwards describe a drug, a price and a class that were not what was prescribed — and it would do so
+     * silently, because the line would still look internally consistent. Null on lines written before this was kept,
+     * which is the honest value: the catalogue of today is not what it was then.
+     */
+    @Size(max = 255)
+    @Column(name = "drug_name", length = 255)
+    private String drugName;
+
+    @Size(max = 50)
+    @Column(name = "drug_unit", length = 50)
+    private String drugUnit;
+
+    @Column(name = "drug_price", precision = 21, scale = 2)
+    private BigDecimal drugPrice;
+
+    @Size(max = 50)
+    @Column(name = "drug_classification", length = 50)
+    private String drugClassification;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
@@ -123,6 +147,38 @@ public class PrescriptionLine implements Serializable {
 
     public void setDrug(Drug drug) {
         this.drug = drug;
+    }
+
+    public String getDrugName() {
+        return this.drugName;
+    }
+
+    public void setDrugName(String drugName) {
+        this.drugName = drugName;
+    }
+
+    public String getDrugUnit() {
+        return this.drugUnit;
+    }
+
+    public void setDrugUnit(String drugUnit) {
+        this.drugUnit = drugUnit;
+    }
+
+    public BigDecimal getDrugPrice() {
+        return this.drugPrice;
+    }
+
+    public void setDrugPrice(BigDecimal drugPrice) {
+        this.drugPrice = drugPrice;
+    }
+
+    public String getDrugClassification() {
+        return this.drugClassification;
+    }
+
+    public void setDrugClassification(String drugClassification) {
+        this.drugClassification = drugClassification;
     }
 
     public PrescriptionLine drug(Drug drug) {

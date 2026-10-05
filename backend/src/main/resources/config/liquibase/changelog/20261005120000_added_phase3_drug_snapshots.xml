@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        What the drug was, on the line that recorded it.
+
+        WHY A COPY RATHER THAN A JOIN
+        A line points at a catalogue entry, and that entry can be renamed, repriced or reclassified tomorrow. Joining
+        for the name or the price means last month's prescription reads as the catalogue reads today — a price nobody
+        agreed and a class the drug was not in at the time. The copy is taken when the line is created and never
+        touched again.
+
+        WHY THESE ARE NULLABLE
+        Lines that already exist were written before this was captured, and there is nothing true to put in them: the
+        catalogue value today is not what the value was then. Filling them in would be inventing history to make a
+        column look complete, so a null here means "recorded before this was kept" and is honest about it. Every line
+        created from now on carries all four.
+
+        The classification is a label, not a foreign key, so that rearranging the set of classifications later cannot
+        change what an old dispense says it was.
+    -->
+    <changeSet id="20261005120000-1" author="hms">
+        <comment>Record the drug as it was on a prescription line</comment>
+        <addColumn tableName="prescription_line">
+            <column name="drug_name" type="varchar(255)" remarks="The drug's name when the line was prescribed"/>
+            <column name="drug_unit" type="varchar(50)" remarks="The drug's unit when the line was prescribed"/>
+            <column name="drug_price" type="numeric(21,2)" remarks="The drug's price when the line was prescribed"/>
+            <column name="drug_classification" type="varchar(50)" remarks="The drug's classification when the line was prescribed"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20261005120000-2" author="hms">
+        <comment>Record the drug as it was on a dispense line</comment>
+        <addColumn tableName="dispense_line">
+            <column name="drug_name" type="varchar(255)" remarks="The drug's name when it was handed over"/>
+            <column name="drug_unit" type="varchar(50)" remarks="The drug's unit when it was handed over"/>
+            <column name="drug_price" type="numeric(21,2)" remarks="The drug's price when it was handed over"/>
+            <column name="drug_classification" type="varchar(50)" remarks="The drug's classification when it was handed over"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>
