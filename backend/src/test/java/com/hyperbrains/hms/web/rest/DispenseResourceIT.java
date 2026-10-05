@@ -289,11 +289,12 @@ class DispenseResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(dispenseDTO))
             )
-            .andExpect(status().isOk());
+            // Refused: when the medicine left the counter is written by handing it over.
+            .andExpect(status().isConflict());
 
-        // Validate the Dispense in the database
+        // Validate the Dispense in the database: it still says when it was really handed over.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedDispenseToMatchAllProperties(updatedDispense);
+        assertThat(getPersistedDispense(dispense).getDispensedAt()).isEqualTo(DEFAULT_DISPENSED_AT);
     }
 
     @Test
@@ -404,12 +405,12 @@ class DispenseResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedDispense))
             )
-            .andExpect(status().isOk());
+            // Refused: a PATCH that moves the hand-over time is the same bypass as the PUT.
+            .andExpect(status().isConflict());
 
-        // Validate the Dispense in the database
-
+        // Validate the Dispense in the database: the hand-over time did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertDispenseUpdatableFieldsEquals(partialUpdatedDispense, getPersistedDispense(partialUpdatedDispense));
+        assertThat(getPersistedDispense(dispense).getDispensedAt()).isEqualTo(DEFAULT_DISPENSED_AT);
     }
 
     @Test

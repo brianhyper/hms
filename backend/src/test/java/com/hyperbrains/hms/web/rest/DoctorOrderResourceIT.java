@@ -422,11 +422,14 @@ class DoctorOrderResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(doctorOrderDTO))
             )
-            .andExpect(status().isOk());
+            // Refused: whether the order stands, and whether it was stopped, are decisions with an author.
+            .andExpect(status().isConflict());
 
-        // Validate the DoctorOrder in the database
+        // Validate the DoctorOrder in the database: the decision did not change.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedDoctorOrderToMatchAllProperties(updatedDoctorOrder);
+        DoctorOrder reloaded = getPersistedDoctorOrder(doctorOrder);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getCancelledAt()).isEqualTo(DEFAULT_CANCELLED_AT);
     }
 
     @Test
@@ -511,15 +514,14 @@ class DoctorOrderResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedDoctorOrder))
             )
-            .andExpect(status().isOk());
+            // Refused: a PATCH carrying the status is the same bypass as the PUT.
+            .andExpect(status().isConflict());
 
-        // Validate the DoctorOrder in the database
-
+        // Validate the DoctorOrder in the database: the decision did not change.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertDoctorOrderUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedDoctorOrder, doctorOrder),
-            getPersistedDoctorOrder(doctorOrder)
-        );
+        DoctorOrder reloaded = getPersistedDoctorOrder(doctorOrder);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getCancelledAt()).isEqualTo(DEFAULT_CANCELLED_AT);
     }
 
     @Test
@@ -551,12 +553,14 @@ class DoctorOrderResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedDoctorOrder))
             )
-            .andExpect(status().isOk());
+            // Refused, and refused whole: the other fields in the same request are not written either.
+            .andExpect(status().isConflict());
 
-        // Validate the DoctorOrder in the database
-
+        // Validate the DoctorOrder in the database: the decision did not change.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertDoctorOrderUpdatableFieldsEquals(partialUpdatedDoctorOrder, getPersistedDoctorOrder(partialUpdatedDoctorOrder));
+        DoctorOrder reloaded = getPersistedDoctorOrder(doctorOrder);
+        assertThat(reloaded.getStatus()).isEqualTo(DEFAULT_STATUS);
+        assertThat(reloaded.getCancelledAt()).isEqualTo(DEFAULT_CANCELLED_AT);
     }
 
     @Test
