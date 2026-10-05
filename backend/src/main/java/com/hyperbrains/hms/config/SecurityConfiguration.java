@@ -76,7 +76,10 @@ public class SecurityConfiguration {
                     .requestMatchers("/swagger-ui/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/authenticate").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/authenticate").permitAll()
-                    .requestMatchers("/api/register").permitAll()
+                    // Registration is closed. Phase 3 gives account creation to Super Admin alone, so nobody creates
+                    // their own account — and it is denied here rather than by deleting the method, because this table
+                    // is where every other authorisation decision in the application lives.
+                    .requestMatchers("/api/register").denyAll()
                     .requestMatchers("/api/activate").permitAll()
                     .requestMatchers("/api/account/reset-password/init").permitAll()
                     .requestMatchers("/api/account/reset-password/finish").permitAll()

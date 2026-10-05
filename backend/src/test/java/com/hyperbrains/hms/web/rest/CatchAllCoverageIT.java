@@ -44,8 +44,11 @@ class CatchAllCoverageIT {
 
     /**
      * Writes that are deliberately available to any signed-in account, each because it is the account acting on
-     * itself. Registration, recovery and signing in are here for a different reason: they are {@code permitAll}
+     * itself. Recovery and signing in are here for a different reason: they are {@code permitAll}
      * on purpose, because somebody who cannot sign in is the whole point of them.
+     *
+     * <p>{@code /api/register} is deliberately not here: it is closed to everyone now, so it is a route that
+     * refuses rather than a route that is open.
      *
      * <p>{@code /api/exception-translator-test} is the controller the exception translator's own tests call. It
      * only exists in test sources and is not part of the application's surface at all.
@@ -53,7 +56,6 @@ class CatchAllCoverageIT {
     private static final Set<String> OPEN_TO_WHOEVER_IS_SIGNED_IN = Set.of(
         "/api/account",
         "/api/account/change-password",
-        "/api/register",
         "/api/activate",
         "/api/account/reset-password/init",
         "/api/account/reset-password/finish",
