@@ -3,6 +3,7 @@ package com.hyperbrains.hms.service.rules;
 import com.hyperbrains.hms.domain.DispenseLine;
 import com.hyperbrains.hms.domain.Drug;
 import com.hyperbrains.hms.domain.PrescriptionLine;
+import java.math.BigDecimal;
 
 /**
  * The drug as it was, written onto the line that was prescribed or handed over against it.
@@ -41,5 +42,41 @@ public final class DrugSnapshot {
 
     private static String classificationOf(Drug drug) {
         return drug.getClassification() == null ? null : drug.getClassification().name();
+    }
+
+    /**
+     * What to show as the drug's name: what the line recorded, falling back to the catalogue entry only where nothing
+     * was recorded because the line predates the snapshot.
+     *
+     * <p>Reading the catalogue entry first is what made the screen wrong: the stored line held the name that was
+     * prescribed, and the pharmacy queue showed the name it has since been renamed to. The fallback exists because the
+     * columns are deliberately nullable, and a historical line must still show a drug rather than show nothing.
+     */
+    public static String nameToShow(PrescriptionLine line) {
+        return line.getDrugName() != null ? line.getDrugName() : nameOf(line.getDrug());
+    }
+
+    public static String unitToShow(PrescriptionLine line) {
+        return line.getDrugUnit() != null ? line.getDrugUnit() : unitOf(line.getDrug());
+    }
+
+    public static BigDecimal priceToShow(PrescriptionLine line) {
+        return line.getDrugPrice() != null ? line.getDrugPrice() : priceOf(line.getDrug());
+    }
+
+    public static String nameToShow(DispenseLine line) {
+        return line.getDrugName() != null ? line.getDrugName() : nameOf(line.getDrug());
+    }
+
+    private static String nameOf(Drug drug) {
+        return drug == null ? null : drug.getName();
+    }
+
+    private static String unitOf(Drug drug) {
+        return drug == null ? null : drug.getUnit();
+    }
+
+    private static BigDecimal priceOf(Drug drug) {
+        return drug == null ? null : drug.getPrice();
     }
 }

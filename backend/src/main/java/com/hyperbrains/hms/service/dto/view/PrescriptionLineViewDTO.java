@@ -2,6 +2,7 @@ package com.hyperbrains.hms.service.dto.view;
 
 import com.hyperbrains.hms.domain.Drug;
 import com.hyperbrains.hms.domain.PrescriptionLine;
+import com.hyperbrains.hms.service.rules.DrugSnapshot;
 import java.io.Serializable;
 import java.math.BigDecimal;
 
@@ -41,12 +42,16 @@ public class PrescriptionLineViewDTO implements Serializable {
         Drug drug = line.getDrug();
         if (drug != null) {
             dto.drugId = drug.getId();
-            dto.drugName = drug.getName();
-            dto.unit = drug.getUnit();
-            dto.unitPrice = drug.getPrice();
-            if (drug.getPrice() != null && line.getQuantity() != null) {
-                dto.lineTotal = drug.getPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
-            }
+        }
+        // The name, the unit and the price come from the line rather than from the catalogue entry it points at,
+        // because the entry can have been renamed and repriced since: this view is of the prescription, not of what
+        // the catalogue says today. The id above stays the live link, since an identifier is a reference rather than
+        // a piece of history.
+        dto.drugName = DrugSnapshot.nameToShow(line);
+        dto.unit = DrugSnapshot.unitToShow(line);
+        dto.unitPrice = DrugSnapshot.priceToShow(line);
+        if (dto.unitPrice != null && line.getQuantity() != null) {
+            dto.lineTotal = dto.unitPrice.multiply(BigDecimal.valueOf(line.getQuantity()));
         }
         return dto;
     }
