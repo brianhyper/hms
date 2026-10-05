@@ -384,11 +384,14 @@ class PaymentResourceIT {
             .perform(
                 put(ENTITY_API_URL_ID, paymentDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(paymentDTO))
             )
-            .andExpect(status().isOk());
+            // Refused: how much was handed over, and when, is the record of a transaction that happened.
+            .andExpect(status().isConflict());
 
-        // Validate the Payment in the database
+        // Validate the Payment in the database: the money did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedPaymentToMatchAllProperties(updatedPayment);
+        Payment reloaded = getPersistedPayment(payment);
+        assertThat(reloaded.getAmount()).isEqualByComparingTo(DEFAULT_AMOUNT);
+        assertThat(reloaded.getRecordedAt()).isEqualTo(DEFAULT_RECORDED_AT);
     }
 
     @Test
@@ -476,12 +479,14 @@ class PaymentResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPayment))
             )
-            .andExpect(status().isOk());
+            // Refused: a PATCH that would move the money is a payment that never took place.
+            .andExpect(status().isConflict());
 
-        // Validate the Payment in the database
-
+        // Validate the Payment in the database: the money did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPaymentUpdatableFieldsEquals(createUpdateProxyForBean(partialUpdatedPayment, payment), getPersistedPayment(payment));
+        Payment reloaded = getPersistedPayment(payment);
+        assertThat(reloaded.getAmount()).isEqualByComparingTo(DEFAULT_AMOUNT);
+        assertThat(reloaded.getRecordedAt()).isEqualTo(DEFAULT_RECORDED_AT);
     }
 
     @Test
@@ -511,12 +516,14 @@ class PaymentResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedPayment))
             )
-            .andExpect(status().isOk());
+            // Refused for the same reason as the PUT above, whatever else the request also carries.
+            .andExpect(status().isConflict());
 
-        // Validate the Payment in the database
-
+        // Validate the Payment in the database: the money did not move.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPaymentUpdatableFieldsEquals(partialUpdatedPayment, getPersistedPayment(partialUpdatedPayment));
+        Payment reloaded = getPersistedPayment(payment);
+        assertThat(reloaded.getAmount()).isEqualByComparingTo(DEFAULT_AMOUNT);
+        assertThat(reloaded.getRecordedAt()).isEqualTo(DEFAULT_RECORDED_AT);
     }
 
     @Test

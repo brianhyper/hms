@@ -3,8 +3,10 @@ package com.hyperbrains.hms.service.impl;
 import com.hyperbrains.hms.domain.Bill;
 import com.hyperbrains.hms.repository.BillRepository;
 import com.hyperbrains.hms.service.BillService;
+import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.dto.BillDTO;
 import com.hyperbrains.hms.service.mapper.BillMapper;
+import com.hyperbrains.hms.service.rules.WorkflowOwnedFields;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +37,16 @@ public class BillServiceImpl implements BillService {
         this.billMapper = billMapper;
     }
 
+    /**
+     * What the billing workflow writes, and what a hand-written update must not touch.
+     *
+     * <p>{@code totalAmount} is the sum of the bill's lines and {@code paidAt} is the moment settlement completed.
+     * A hand edit to either leaves a bill whose total does not follow from its own lines, or one that says it was
+     * settled by a payment that no payment row records — which is exactly the kind of figure that survives every
+     * later report, because nothing downstream re-derives it.
+     */
+    private static final String[] WORKFLOW_OWNED_FIELDS = { "totalAmount", "paidAt", "status" };
+
     @Override
     public BillDTO save(BillDTO billDTO) {
         LOG.debug("Request to save Bill : {}", billDTO);
@@ -46,6 +58,8 @@ public class BillServiceImpl implements BillService {
     @Override
     public BillDTO update(BillDTO billDTO) {
         LOG.debug("Request to update Bill : {}", billDTO);
+        // A PUT carries the whole record, so an empty field here means "clear it" rather than "leave it".
+        refuseHandEdits(billDTO, requireStored(billDTO.getId()), false);
         Bill bill = billMapper.toEntity(billDTO);
         bill = billRepository.save(bill);
         return billMapper.toDto(bill);
@@ -58,12 +72,37 @@ public class BillServiceImpl implements BillService {
         return billRepository
             .findById(billDTO.getId())
             .map(existingBill -> {
+                // A PATCH carries only what is changing, so an empty field here means "leave it".
+                refuseHandEdits(billDTO, existingBill, true);
                 billMapper.partialUpdate(existingBill, billDTO);
 
                 return existingBill;
             })
             .map(billRepository::save)
             .map(billMapper::toDto);
+    }
+
+    private void refuseHandEdits(BillDTO requested, Bill stored, boolean nullMeansUnchanged) {
+        List<String> changed = WorkflowOwnedFields.changed(
+            billMapper.toEntity(requested),
+            stored,
+            nullMeansUnchanged,
+            WORKFLOW_OWNED_FIELDS
+        );
+        if (!changed.isEmpty()) {
+            throw BusinessRuleViolationException.of(
+                "billNotEditedByHand",
+                "bill",
+                "A bill's total follows from its lines and is settled by a payment, so neither is edited here; this request would change " +
+                String.join(", ", changed)
+            );
+        }
+    }
+
+    private Bill requireStored(Long id) {
+        return billRepository
+            .findById(id)
+            .orElseThrow(() -> BusinessRuleViolationException.of("billNotFound", "bill", "No bill with id " + id));
     }
 
     @Override

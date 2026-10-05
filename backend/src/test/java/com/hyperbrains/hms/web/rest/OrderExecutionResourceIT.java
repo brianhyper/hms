@@ -289,11 +289,11 @@ class OrderExecutionResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(orderExecutionDTO))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the OrderExecution in the database
+        // Validate the OrderExecution in the database: when it was given did not change.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedOrderExecutionToMatchAllProperties(updatedOrderExecution);
+        assertThat(getPersistedOrderExecution(orderExecution).getExecutedAt()).isEqualTo(DEFAULT_EXECUTED_AT);
     }
 
     @Test
@@ -378,15 +378,11 @@ class OrderExecutionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedOrderExecution))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the OrderExecution in the database
-
+        // Validate the OrderExecution in the database: when it was given did not change.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertOrderExecutionUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedOrderExecution, orderExecution),
-            getPersistedOrderExecution(orderExecution)
-        );
+        assertThat(getPersistedOrderExecution(orderExecution).getExecutedAt()).isEqualTo(DEFAULT_EXECUTED_AT);
     }
 
     @Test
@@ -409,12 +405,14 @@ class OrderExecutionResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedOrderExecution))
             )
-            .andExpect(status().isOk());
+            .andExpect(status().isConflict());
 
-        // Validate the OrderExecution in the database
-
+        // Validate the OrderExecution in the database: the notes are not the reason this was refused, and even so
+        // nothing was written, because the whole request is refused rather than the one field.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertOrderExecutionUpdatableFieldsEquals(partialUpdatedOrderExecution, getPersistedOrderExecution(partialUpdatedOrderExecution));
+        OrderExecution reloaded = getPersistedOrderExecution(orderExecution);
+        assertThat(reloaded.getExecutedAt()).isEqualTo(DEFAULT_EXECUTED_AT);
+        assertThat(reloaded.getNotes()).isEqualTo(DEFAULT_NOTES);
     }
 
     @Test

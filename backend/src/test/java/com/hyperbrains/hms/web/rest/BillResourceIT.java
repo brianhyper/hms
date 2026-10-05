@@ -247,11 +247,14 @@ class BillResourceIT {
 
         restBillMockMvc
             .perform(put(ENTITY_API_URL_ID, billDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(billDTO)))
-            .andExpect(status().isOk());
+            // Refused: a bill's total follows from its lines and its status from settlement.
+            .andExpect(status().isConflict());
 
-        // Validate the Bill in the database
+        // Validate the Bill in the database: nothing about the bill moved.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedBillToMatchAllProperties(updatedBill);
+        Bill reloaded = getPersistedBill(bill);
+        assertThat(reloaded.getTotalAmount()).isEqualByComparingTo(DEFAULT_TOTAL_AMOUNT);
+        assertThat(reloaded.getPaidAt()).isEqualTo(DEFAULT_PAID_AT);
     }
 
     @Test
@@ -358,12 +361,14 @@ class BillResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedBill))
             )
-            .andExpect(status().isOk());
+            // Refused: a PATCH carrying the total or the settlement is the same bypass as the PUT.
+            .andExpect(status().isConflict());
 
-        // Validate the Bill in the database
-
+        // Validate the Bill in the database: nothing about the bill moved.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertBillUpdatableFieldsEquals(partialUpdatedBill, getPersistedBill(partialUpdatedBill));
+        Bill reloaded = getPersistedBill(bill);
+        assertThat(reloaded.getTotalAmount()).isEqualByComparingTo(DEFAULT_TOTAL_AMOUNT);
+        assertThat(reloaded.getPaidAt()).isEqualTo(DEFAULT_PAID_AT);
     }
 
     @Test
