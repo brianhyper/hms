@@ -7,6 +7,7 @@ import com.hyperbrains.hms.service.MailService;
 import com.hyperbrains.hms.service.UserService;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
 import com.hyperbrains.hms.service.dto.PasswordChangeDTO;
+import com.hyperbrains.hms.service.rules.Passwords;
 import com.hyperbrains.hms.web.rest.errors.*;
 import com.hyperbrains.hms.web.rest.vm.KeyAndPasswordVM;
 import com.hyperbrains.hms.web.rest.vm.ManagedUserVM;
@@ -197,8 +198,8 @@ public class AccountResource {
     private static boolean isPasswordLengthInvalid(String password) {
         return (
             StringUtils.isEmpty(password) ||
-            password.length() < ManagedUserVM.PASSWORD_MIN_LENGTH ||
-            password.length() > ManagedUserVM.PASSWORD_MAX_LENGTH
+            password.length() < Passwords.MIN_LENGTH ||
+            password.length() > Passwords.MAX_LENGTH
         );
     }
 }

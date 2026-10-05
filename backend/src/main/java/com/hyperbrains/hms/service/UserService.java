@@ -10,6 +10,7 @@ import com.hyperbrains.hms.security.SecurityUtils;
 import com.hyperbrains.hms.service.dto.AdminUserDTO;
 import com.hyperbrains.hms.service.dto.UserDTO;
 import com.hyperbrains.hms.service.rules.AccountLifecycle;
+import com.hyperbrains.hms.service.rules.Passwords;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -76,6 +77,11 @@ public class UserService {
             .findOneByResetKey(key)
             .filter(user -> user.getResetDate().isAfter(Instant.now().minus(1, ChronoUnit.DAYS)))
             .map(user -> {
+                if (!Passwords.isAcceptable(newPassword, user.getLogin())) {
+                    // The same 400 the too-short case gets: one answer for "that password may not be used", whether it
+                    // is too short or is the account's own login.
+                    throw new InvalidPasswordException();
+                }
                 user.setPassword(passwordEncoder.encode(newPassword));
                 user.setResetKey(null);
                 user.setResetDate(null);
@@ -420,6 +426,11 @@ public class UserService {
             .ifPresent(user -> {
                 String currentEncryptedPassword = user.getPassword();
                 if (!passwordEncoder.matches(currentClearTextPassword, currentEncryptedPassword)) {
+                    throw new InvalidPasswordException();
+                }
+                // The route already refused a password that is too short or too long; this is the prohibition that
+                // needs the account, which is what this layer has and the endpoint does not.
+                if (!Passwords.isAcceptable(newPassword, user.getLogin())) {
                     throw new InvalidPasswordException();
                 }
                 String encryptedPassword = passwordEncoder.encode(newPassword);
