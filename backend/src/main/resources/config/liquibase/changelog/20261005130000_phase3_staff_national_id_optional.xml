@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        A staff identity number becomes optional, and stays unique when it is there.
+
+        WHY IT WAS WRONG TO REQUIRE IT
+        This table exists so that a hospital can hold a file on everyone who works in it, including the people who have
+        no system account: a cleaner, a porter, a driver. The record's own documentation says so. Requiring a national
+        identity number at the same time makes that impossible for anyone who does not have one to hand, which is the
+        one thing the entity was written to allow.
+
+        WHY UNIQUE STAYS
+        The number is what the record is keyed on, and names repeat, are spelled several ways and change. Two staff
+        files sharing a number would be one person on file twice.
+
+        WHY NOTHING BREAKS
+        Postgres permits any number of NULLs inside a unique index, so "unique when present" is exactly what the
+        constraint already enforces once the NOT NULL is dropped. No index change, no partial index needed.
+    -->
+    <changeSet id="20261005130000-1" author="hms">
+        <comment>Make StaffRecord.national_id optional while keeping it unique when present</comment>
+        <dropNotNullConstraint tableName="staff_record" columnName="national_id" columnDataType="varchar(32)"/>
+    </changeSet>
+</databaseChangeLog>

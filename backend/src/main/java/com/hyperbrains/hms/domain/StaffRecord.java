@@ -51,7 +51,16 @@ public class StaffRecord implements Serializable {
      */
     @NotNull
     @Size(max = 32)
-    @Column(name = "national_id", length = 32, nullable = false, unique = true)
+    /**
+     * The identity this record is keyed on, and unique when it is there.
+     *
+     * <p>Optional, deliberately: this table holds a file on everyone who works here, including people who have no
+     * system account and no identity number to hand — a cleaner, a porter, a driver. Requiring one would refuse
+     * exactly the records the entity exists to allow. Names repeat and change, which is why the number stays unique
+     * when present rather than being dropped.
+     */
+    @Size(max = 32)
+    @Column(name = "national_id", length = 32, unique = true)
     private String nationalId;
 
     @Size(max = 120)
