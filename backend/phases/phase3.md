@@ -42,16 +42,16 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 
 ### Slices
 
-| Slice | Delivers | Depends on | Status (2026-09-30) |
+| Slice | Delivers | Depends on | Status (2026-10-05) |
 |---|---|---|---|
 | S3.0 | The nine-role model as constants (+ `ROLE_HR`), user and role management moved to Super Admin only, this plan | — | **delivered** (`16ebdcc`) |
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
-| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **part: revocation, the lockout with its auto-release, and the idle timeout are delivered**; forced first-login change and one-time reset tokens **open** |
+| S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **delivered** — forced first-login change (`a8fa154`), one-time reset tokens under a row lock (`78926c3`), the admin initial-password action that makes the first of those reachable (`94d6e9c`), and the revocation, lockout and idle timeout halves recorded below |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **delivered** — the read is named as a read and writes are refused outright (`7d75e39`) |
-| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | not started |
-| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | not started |
-| S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **part: bill lines delivered** (`691e1fa`); nine services open |
-| S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | not started |
+| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | **delivered** (`b3c98c6`) — one entry per chart open, written only for a chart that was actually opened, so a failed or refused request leaves nothing to be mistaken for access. `EDIT` actions are not recorded yet |
+| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | **not started, and blocked twice over.** Who may override is open question 6 below, and the billing gate has no plug-in point yet: it is a status hold on the visit, and the override the phase means belongs to the discharge operation, which does not exist (Phase 4). Single-step would preserve today's behaviour and cannot contradict a later ruling; a second approver would add an approval step without rework |
+| S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **delivered** — all nine services guarded (`6416e58`, `e5b6992`, `a9c80bd`), plus vitals, which failed the status-or-amount test because every column is a measurement and so is refused outright (`f340471`). Two gaps left inside it, both recorded below: **creating** by hand is still open on all nine, and references are not guarded because the shared guard compares them by identity |
+| S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | **delivered** — recorded on both line types and populated by one rule (`ab0c42f`), proven adversarially and end to end (`a0e4aea`), and read back by all three views, which had been showing the renamed catalogue entry instead (`28a03cc`, `a9bf047`). The columns are nullable on purpose for rows written before the snapshot existed |
 | S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **delivered** — it is Phase 4's P4.0, built when Phase 4 started |
 | S3.9 | Reference-data management closed to Super Admin, and a structural test that no state-changing route falls through to the `/api/**` catch-all | S3.6 | **delivered** — the catch-all test (`483f037`), its two holes closed, and the five reference-data write rows that still admitted ADMIN closed to Super Admin (`7d75e39`) |
 
@@ -130,6 +130,37 @@ design avoids.
 confirms to an anonymous caller that the account exists. That is JHipster's original wording and it tells a
 genuine activation-pending user why they cannot sign in, but it is the same class of disclosure that was
 rejected for the lock.
+
+### Handoff gaps
+
+Open things this phase leaves behind, in one place so they are not rediscovered. None of these is a slice that can
+simply be picked up; each is either a decision, a legal question, or a deployment change. The full gate was green over
+this list at `a0e4aea`: 405 unit and 1035 integration tests, 0 failures, 0 skipped, 0 checkstyle violations.
+
+1. **Creating clinical and financial records by hand is still open.** S3.6 guards edits on all nine services, but
+   `POST` on those generated routes can still create a payment, bill, execution, dispense, order, prescription line or
+   ward cover. Nothing else calls those `save` methods, so refusing them is safe; it means adjusting the generated
+   create tests. The ward-cover creation bypass of the open-ward rule is the same item.
+2. **References are not guarded on those entities.** `WorkflowOwnedFields` compares references by identity rather than
+   by id — deliberately, because reading an id off a Hibernate reference threw when it was tried — so guarding
+   `doctor`, `ward`, `drug` or `prescription` would refuse legitimate edits. A cover can therefore still be re-pointed
+   at another ward, and a prescription line at another drug, by hand. Closing it needs an id-based comparison inside
+   the guard.
+3. **`Patient` still has the raw update its own correction route exists to replace.** `PUT /api/patients/{id}` can
+   change a name, an allergy or a date of birth with no reason attached, which is exactly what
+   `PatientCorrectionResource` was written to prevent. Same class as item 1, outside the nine the spec names.
+4. **`VitalSigns` corrections edit in place.** The superseded reading survives only as the audit trail's `oldValue`.
+   `InpatientVitals` does it properly, with a new row and a `corrects` reference; FHIR and HL7 both keep the
+   superseded value as a record. The two halves of the system disagree about this.
+5. **The reset key is stored in clear text**, and an expired, spent or unknown reset link answers **500** rather than
+   400 (`AccountResourceException` is a bare `RuntimeException`). Hashing the key is invisible to users except that
+   links issued before a deploy stop working; the status change is visible in the browser.
+6. **Reset links live for one day**, now a named constant. Shorter is better for what is effectively a token for
+   taking an account over, and it is visible to anyone who opens their mail the next morning.
+7. **Revocation freshness depends on a single-node local cache** (ruling 2), and **staff erasure is deferred**
+   (ruling 6). Both stand as recorded there.
+8. **`PatientAccessLog` records `VIEW` only.** The phase's wording is "an action type such as `VIEW` or `EDIT`";
+   corrections and updates to a patient record do not produce an entry.
 
 ### Open questions
 
