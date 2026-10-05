@@ -163,22 +163,14 @@ class VitalSignsResourceIT {
         long databaseSizeBeforeCreate = getRepositoryCount();
         // Create the VitalSigns
         VitalSignsDTO vitalSignsDTO = vitalSignsMapper.toDto(vitalSigns);
-        var returnedVitalSignsDTO = om.readValue(
-            restVitalSignsMockMvc
-                .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(vitalSignsDTO)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            VitalSignsDTO.class
-        );
 
-        // Validate the VitalSigns in the database
-        assertIncrementedRepositoryCount(databaseSizeBeforeCreate);
-        var returnedVitalSigns = vitalSignsMapper.toEntity(returnedVitalSignsDTO);
-        assertVitalSignsUpdatableFieldsEquals(returnedVitalSigns, getPersistedVitalSigns(returnedVitalSigns));
+        restVitalSignsMockMvc
+            .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(vitalSignsDTO)))
+            // Refused: a reading is recorded through triage, which checks it and records who took it.
+            .andExpect(status().isConflict());
 
-        insertedVitalSigns = returnedVitalSigns;
+        // Validate that no VitalSigns was created
+        assertSameRepositoryCount(databaseSizeBeforeCreate);
     }
 
     @Test
@@ -291,11 +283,13 @@ class VitalSignsResourceIT {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(om.writeValueAsBytes(vitalSignsDTO))
             )
-            .andExpect(status().isOk());
+            // Refused: a reading is superseded by a correction, which requires a reason.
+            .andExpect(status().isConflict());
 
-        // Validate the VitalSigns in the database
+        // Validate the VitalSigns in the database: the chart still says what was measured.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertPersistedVitalSignsToMatchAllProperties(updatedVitalSigns);
+        assertThat(getPersistedVitalSigns(vitalSigns).getTemperature()).isEqualByComparingTo(DEFAULT_TEMPERATURE);
+        assertThat(getPersistedVitalSigns(vitalSigns).getPulseRate()).isEqualTo(DEFAULT_PULSE_RATE);
     }
 
     @Test
@@ -386,15 +380,12 @@ class VitalSignsResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedVitalSigns))
             )
-            .andExpect(status().isOk());
+            // Refused: a PATCH that changes a measurement is the same bypass as the PUT.
+            .andExpect(status().isConflict());
 
-        // Validate the VitalSigns in the database
-
+        // Validate the VitalSigns in the database: the chart still says what was measured.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertVitalSignsUpdatableFieldsEquals(
-            createUpdateProxyForBean(partialUpdatedVitalSigns, vitalSigns),
-            getPersistedVitalSigns(vitalSigns)
-        );
+        assertThat(getPersistedVitalSigns(vitalSigns).getTemperature()).isEqualByComparingTo(DEFAULT_TEMPERATURE);
     }
 
     @Test
@@ -429,12 +420,14 @@ class VitalSignsResourceIT {
                     .contentType("application/merge-patch+json")
                     .content(om.writeValueAsBytes(partialUpdatedVitalSigns))
             )
-            .andExpect(status().isOk());
+            // Refused, and refused whole: even the free-text fields in the same request are not written.
+            .andExpect(status().isConflict());
 
-        // Validate the VitalSigns in the database
-
+        // Validate the VitalSigns in the database: the chart still says what was measured.
         assertSameRepositoryCount(databaseSizeBeforeUpdate);
-        assertVitalSignsUpdatableFieldsEquals(partialUpdatedVitalSigns, getPersistedVitalSigns(partialUpdatedVitalSigns));
+        VitalSigns reloaded = getPersistedVitalSigns(vitalSigns);
+        assertThat(reloaded.getTemperature()).isEqualByComparingTo(DEFAULT_TEMPERATURE);
+        assertThat(reloaded.getTriageNotes()).isEqualTo(DEFAULT_TRIAGE_NOTES);
     }
 
     @Test
@@ -510,10 +503,11 @@ class VitalSignsResourceIT {
         // Delete the vitalSigns
         restVitalSignsMockMvc
             .perform(delete(ENTITY_API_URL_ID, vitalSigns.getId()).accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isNoContent());
+            // Refused: a reading that was taken stays on the chart, even when it turns out to be wrong.
+            .andExpect(status().isConflict());
 
-        // Validate the database contains one less item
-        assertDecrementedRepositoryCount(databaseSizeBeforeDelete);
+        // Validate the reading is still on the chart
+        assertSameRepositoryCount(databaseSizeBeforeDelete);
     }
 
     protected long getRepositoryCount() {
