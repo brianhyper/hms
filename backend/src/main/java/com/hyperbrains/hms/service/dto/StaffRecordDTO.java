@@ -19,7 +19,14 @@ public class StaffRecordDTO implements Serializable {
     @Size(max = 120)
     private String fullName;
 
-    @NotNull
+    /**
+     * The identity this file is keyed on, when it is known.
+     *
+     * <p>Not required: the hospital holds a file on everyone who works in it, including people with no system account
+     * and no number to hand. The column and the entity were changed for that reason, and this annotation was the last
+     * place still refusing the request — found by the test that was owed, which asserted a file with no number saves
+     * and got a 400 back.
+     */
     @Size(max = 32)
     private String nationalId;
 
