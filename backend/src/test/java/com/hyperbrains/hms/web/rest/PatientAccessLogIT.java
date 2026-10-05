@@ -17,6 +17,8 @@ import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.service.HospitalIdService;
+import com.hyperbrains.hms.service.PatientCorrectionService;
+import com.hyperbrains.hms.service.dto.view.CorrectPatientRequestDTO;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,9 @@ class PatientAccessLogIT {
 
     @Autowired
     private PatientRepository patientRepository;
+
+    @Autowired
+    private PatientCorrectionService patientCorrectionService;
 
     @Autowired
     private UserRepository userRepository;
@@ -137,6 +143,29 @@ class PatientAccessLogIT {
             )
             .andExpect(status().isForbidden());
         assertThat(patientAccessLogRepository.countByPatientId(patient.getId())).isZero();
+    }
+
+    /**
+     * A correction is an edit of the record rather than another look at it, and it is recorded in the transaction that
+     * made it: one that was refused changes nothing and leaves no entry behind.
+     */
+    @Test
+    @WithMockUser(username = "chart-writer")
+    void correctingARecordIsRecordedAsAnEdit() {
+        Patient patient = patient("edited");
+        CorrectPatientRequestDTO correction = new CorrectPatientRequestDTO();
+        correction.setReason("the name was misspelled at registration");
+        correction.setFullName("Corrected Name");
+
+        patientCorrectionService.correct(patient.getId(), correction);
+
+        var entries = patientAccessLogRepository.findByPatientIdOrderByAccessedAtDesc(
+            patient.getId(),
+            org.springframework.data.domain.PageRequest.of(0, 10)
+        );
+        assertThat(entries.getContent()).as("an edit, not a view").hasSize(1);
+        assertThat(entries.getContent().getFirst().getAction()).isEqualTo("EDIT");
+        assertThat(entries.getContent().getFirst().getActorLogin()).isEqualTo("chart-writer");
     }
 
     private int entriesOf(Patient patient, String token) throws Exception {

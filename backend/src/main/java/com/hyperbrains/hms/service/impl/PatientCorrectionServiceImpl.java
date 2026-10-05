@@ -6,6 +6,7 @@ import com.hyperbrains.hms.security.AuthoritiesConstants;
 import com.hyperbrains.hms.security.SecurityUtils;
 import com.hyperbrains.hms.service.AuditActions;
 import com.hyperbrains.hms.service.AuditLogService;
+import com.hyperbrains.hms.service.PatientAccessLogService;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.ExactPatientMatchException;
 import com.hyperbrains.hms.service.PatientCorrectionService;
@@ -33,9 +34,16 @@ public class PatientCorrectionServiceImpl implements PatientCorrectionService {
 
     private final AuditLogService auditLogService;
 
-    public PatientCorrectionServiceImpl(PatientRepository patientRepository, AuditLogService auditLogService) {
+    private final PatientAccessLogService patientAccessLogService;
+
+    public PatientCorrectionServiceImpl(
+        PatientRepository patientRepository,
+        AuditLogService auditLogService,
+        PatientAccessLogService patientAccessLogService
+    ) {
         this.patientRepository = patientRepository;
         this.auditLogService = auditLogService;
+        this.patientAccessLogService = patientAccessLogService;
     }
 
     @Override
@@ -72,6 +80,9 @@ public class PatientCorrectionServiceImpl implements PatientCorrectionService {
         );
 
         LOG.debug("Corrected patient {}: {} field(s) changed", patientId, changes.size());
+        // Recorded in this transaction, after the correction has gone through: one that was refused changes nothing
+        // and therefore leaves no entry to be mistaken for one.
+        patientAccessLogService.recordEdit(patientId);
         return new PatientCorrectionResultDTO(
             patient.getId(),
             request.getReason(),

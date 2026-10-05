@@ -8,6 +8,7 @@ import com.hyperbrains.hms.domain.Patient;
 import com.hyperbrains.hms.domain.enumeration.IdentityDocumentType;
 import com.hyperbrains.hms.domain.enumeration.RegistrationStatus;
 import com.hyperbrains.hms.domain.enumeration.Sex;
+import com.hyperbrains.hms.repository.PatientAccessLogRepository;
 import com.hyperbrains.hms.repository.PatientRepository;
 import com.hyperbrains.hms.service.AuditLogService;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
@@ -57,6 +58,9 @@ class PatientCorrectionIT {
     private PatientRepository patientRepository;
 
     @Autowired
+    private PatientAccessLogRepository patientAccessLogRepository;
+
+    @Autowired
     private HospitalIdService hospitalIdService;
 
     private Patient patient;
@@ -71,7 +75,14 @@ class PatientCorrectionIT {
 
     @AfterEach
     void cleanup() {
-        createdPatientIds.forEach(id -> patientRepository.findById(id).ifPresent(patientRepository::delete));
+        // The access log goes first. Its rows point at the patient and that foreign key is kept on purpose, so a
+        // patient with a chart open or a correction against them cannot be removed until those rows are gone.
+        // Production has no delete path at all — this is teardown, not a rule — so the log is cleared here rather
+        // than the constraint being weakened to suit a test.
+        createdPatientIds.forEach(id -> {
+            patientAccessLogRepository.deleteByPatientId(id);
+            patientRepository.findById(id).ifPresent(patientRepository::delete);
+        });
         createdPatientIds.clear();
     }
 

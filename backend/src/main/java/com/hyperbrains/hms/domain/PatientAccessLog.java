@@ -26,6 +26,9 @@ public class PatientAccessLog implements Serializable {
     /** A chart was opened. */
     public static final String VIEW = "VIEW";
 
+    /** The record itself was changed. One entry per correction, not one per field it changed. */
+    public static final String EDIT = "EDIT";
+
     @Serial
     private static final long serialVersionUID = 1L;
 

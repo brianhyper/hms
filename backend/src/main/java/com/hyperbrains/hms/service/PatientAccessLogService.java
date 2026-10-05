@@ -46,14 +46,32 @@ public class PatientAccessLogService {
      * there is then no access to record.
      */
     public void recordChartOpen(Long patientId) {
+        record(patientId, PatientAccessLog.VIEW, "Chart opened");
+    }
+
+    /**
+     * Records that the signed-in user changed this patient's record.
+     *
+     * <p>One entry per correction rather than one per changed field, the same boundary the chart open has: what is
+     * being recorded is that somebody touched this record, at this time, and the audit trail already holds the
+     * field-by-field detail for anyone who needs it.
+     *
+     * <p>Called from inside the correction, so one that is refused leaves no entry — the same rule as a chart open
+     * that failed.
+     */
+    public void recordEdit(Long patientId) {
+        record(patientId, PatientAccessLog.EDIT, "Record corrected");
+    }
+
+    private void record(Long patientId, String action, String what) {
         SecurityUtils.getCurrentUserLogin().ifPresent(login -> {
             PatientAccessLog entry = new PatientAccessLog();
             entry.setPatient(patientRepository.getReferenceById(patientId));
             entry.setActorLogin(login);
-            entry.setAction(PatientAccessLog.VIEW);
+            entry.setAction(action);
             entry.setAccessedAt(Instant.now());
             patientAccessLogRepository.save(entry);
-            LOG.debug("Chart opened: patient {} by {}", patientId, login);
+            LOG.debug("{}: patient {} by {}", what, patientId, login);
         });
     }
 
