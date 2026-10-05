@@ -286,6 +286,12 @@ public class SecurityConfiguration {
                     // written by the application, never through the API, so writes are refused outright.
                     .requestMatchers(HttpMethod.GET, "/api/audit-logs", "/api/audit-logs/**").hasAnyAuthority(ADMIN, SUPER_ADMIN)
                     .requestMatchers("/api/audit-logs", "/api/audit-logs/**").denyAll()
+                    // Who opened whose chart. Administration reads it because the question is an operational one,
+                    // Super Admin because it is a security one; no other role reads it, and nothing writes it over
+                    // HTTP at all — an entry is created by opening a chart, which is the event being recorded.
+                    .requestMatchers(HttpMethod.GET, "/api/patient-access-logs", "/api/patient-access-logs/**")
+                    .hasAnyAuthority(ADMIN, SUPER_ADMIN)
+                    .requestMatchers("/api/patient-access-logs", "/api/patient-access-logs/**").denyAll()
 
                     // ---- Patient registration actions ----
                     // A pre-save duplicate check is a read: nurses and doctors need it for intake too.

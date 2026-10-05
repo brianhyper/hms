@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.web.rest;
 
 import com.hyperbrains.hms.repository.PatientRepository;
+import com.hyperbrains.hms.service.PatientAccessLogService;
 import com.hyperbrains.hms.service.PatientService;
 import com.hyperbrains.hms.service.dto.PatientDTO;
 import com.hyperbrains.hms.web.rest.errors.BadRequestAlertException;
@@ -42,9 +43,16 @@ public class PatientResource {
 
     private final PatientRepository patientRepository;
 
-    public PatientResource(PatientService patientService, PatientRepository patientRepository) {
+    private final PatientAccessLogService patientAccessLogService;
+
+    public PatientResource(
+        PatientService patientService,
+        PatientRepository patientRepository,
+        PatientAccessLogService patientAccessLogService
+    ) {
         this.patientService = patientService;
         this.patientRepository = patientRepository;
+        this.patientAccessLogService = patientAccessLogService;
     }
 
     /**
@@ -159,6 +167,9 @@ public class PatientResource {
     public ResponseEntity<PatientDTO> getPatient(@PathVariable("id") Long id) {
         LOG.debug("REST request to get Patient : {}", id);
         Optional<PatientDTO> patientDTO = patientService.findOne(id);
+        // Opening a chart is the event worth recording, and only when a chart was actually opened: a request for a
+        // patient who is not there, or one refused before it reached here, leaves no entry to be mistaken for access.
+        patientDTO.ifPresent(found -> patientAccessLogService.recordChartOpen(found.getId()));
         return ResponseUtil.wrapOrNotFound(patientDTO);
     }
 

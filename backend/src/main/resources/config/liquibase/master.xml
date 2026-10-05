@@ -93,5 +93,6 @@
     <include file="config/liquibase/changelog/20260930140000_added_entity_StaffRecord.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260930140001_added_entity_constraints_StaffRecord.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20261005100000_added_phase3_password_change_required.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20261005110000_added_entity_PatientAccessLog.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-incremental-changelog - JHipster will add incremental liquibase changelogs here -->
 </databaseChangeLog>

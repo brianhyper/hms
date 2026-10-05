@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Who opened whose chart, and when.
+
+        WHY IT IS NOT THE AUDIT TRAIL
+        The audit trail records writes — what changed, from what to what. Opening a chart changes nothing, and it is
+        the one thing this system cannot otherwise answer: the trail will say a nurse corrected a reading, but not that
+        somebody read a record they had no business reading. That question is asked after the fact and about people who
+        were entitled to be in the system, which is why it is recorded separately and read by Administration as well as
+        Super Admin.
+
+        ONE ENTRY PER OPENING, NOT PER READ
+        A chart open is one entry. Not the tabs, not the export, not the individual fetch behind each panel — a log
+        that grows with every click is one nobody reads, and it would make the single fact that matters (this person
+        opened this record at this time) harder to find, not easier.
+
+        THE LOGIN IS COPIED, NOT JOINED
+        The account's login is stored on the row rather than reached through a foreign key, for the same reason a
+        diagnostic order copies its test name: a record of who did something has to keep meaning what it meant when it
+        was written.
+    -->
+    <changeSet id="20261005110000-1" author="hms">
+        <comment>Add patient_access_log for chart-open access tracking</comment>
+        <createTable tableName="patient_access_log">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="patient_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="actor_login" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action" type="varchar(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="accessed_at" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20261005110000-2" author="hms">
+        <comment>Constrain the patient of a patient access log entry</comment>
+        <addForeignKeyConstraint
+            baseColumnNames="patient_id"
+            baseTableName="patient_access_log"
+            constraintName="fk_patient_access_log__patient_id"
+            referencedColumnNames="id"
+            referencedTableName="patient"/>
+        <createIndex indexName="idx_patient_access_log__patient_id__accessed_at" tableName="patient_access_log">
+            <column name="patient_id"/>
+            <column name="accessed_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>
