@@ -11,6 +11,7 @@ import com.hyperbrains.hms.service.dto.AdminUserDTO;
 import com.hyperbrains.hms.service.dto.UserDTO;
 import com.hyperbrains.hms.service.rules.AccountLifecycle;
 import com.hyperbrains.hms.service.rules.Passwords;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -34,6 +35,13 @@ import tech.jhipster.security.RandomUtil;
 public class UserService {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserService.class);
+
+    /**
+     * How long a reset link stays usable. A reset link is enough to take an account over, so this is a limit on how
+     * long a link that leaked keeps its power; it is short enough to be worth something and long enough that somebody
+     * who reads their mail the next morning is not sent round the loop again.
+     */
+    private static final Duration RESET_KEY_LIFETIME = Duration.ofDays(1);
 
     private final UserRepository userRepository;
 
@@ -60,7 +68,8 @@ public class UserService {
     }
 
     public Optional<User> activateRegistration(String key) {
-        LOG.debug("Activating user for activation key {}", key);
+        // The key is not written to the log: it is a credential, and a log is read by more people than the database is.
+        LOG.debug("Activating a user for an activation key");
         return userRepository.findOneByActivationKey(key).map(user -> {
             // activate given user for the registration key.
             user.setActivated(true);
@@ -72,10 +81,13 @@ public class UserService {
     }
 
     public Optional<User> completePasswordReset(String newPassword, String key) {
-        LOG.debug("Reset user password for reset key {}", key);
+        LOG.debug("Reset user password for a reset key");
         return userRepository
-            .findOneByResetKey(key)
-            .filter(user -> user.getResetDate().isAfter(Instant.now().minus(1, ChronoUnit.DAYS)))
+            // Read under a lock, so that the key works once even if two requests arrive together; see the repository
+            // method. The password is checked inside the same transaction, which is what keeps a rejected password
+            // from costing the holder their link: nothing is written unless the whole thing succeeds.
+            .findOneByResetKeyForUpdate(key)
+            .filter(user -> user.getResetDate().isAfter(Instant.now().minus(RESET_KEY_LIFETIME)))
             .map(user -> {
                 if (!Passwords.isAcceptable(newPassword, user.getLogin())) {
                     // The same 400 the too-short case gets: one answer for "that password may not be used", whether it

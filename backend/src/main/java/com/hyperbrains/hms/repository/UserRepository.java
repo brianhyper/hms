@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.User;
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -8,6 +9,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,7 +26,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     String USERS_BY_EMAIL_CACHE = "usersByEmail";
     Optional<User> findOneByActivationKey(String activationKey);
     List<User> findAllByActivatedIsFalseAndActivationKeyIsNotNullAndCreatedDateBefore(Instant dateTime);
-    Optional<User> findOneByResetKey(String resetKey);
+
+    /**
+     * The account holding this reset key, held under a row lock until the surrounding transaction ends.
+     *
+     * <p>A reset key has to work exactly once. Clearing it is not enough on its own, because two requests carrying the
+     * same key can read the account before either of them writes to it: both would pass the expiry check and both
+     * would set a password, and whichever committed last would win. That hands anyone who has kept a copy of a key
+     * the power to overrule the person the link was sent to. Under the lock the second request waits for the first to
+     * finish, and by then the key it was holding has been cleared, so its read finds nothing.
+     *
+     * <p>Not cached, either, and it must not become cacheable: a key that has been spent has to stop working at once.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from User user where user.resetKey = :resetKey")
+    Optional<User> findOneByResetKeyForUpdate(@Param("resetKey") String resetKey);
+
     Optional<User> findOneByEmailIgnoreCase(String email);
     Optional<User> findOneByLogin(String login);
 
