@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.web.rest;
 
 import com.hyperbrains.hms.repository.PatientRepository;
+import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.PatientAccessLogService;
 import com.hyperbrains.hms.service.PatientService;
 import com.hyperbrains.hms.service.dto.PatientDTO;
@@ -174,17 +175,26 @@ public class PatientResource {
     }
 
     /**
-     * {@code DELETE  /patients/:id} : delete the "id" patient.
+     * {@code DELETE  /patients/:id} : refuses, because a patient record is not deleted.
      *
-     * @param id the id of the patientDTO to delete.
-     * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
+     * <p>Refused for every role rather than restricted to one. A patient's clinical history, their bills, the access
+     * log of who opened their chart and every record that names them all point at this row; deleting it would leave
+     * those pointing at nothing, and the reasons to delete one — a duplicate, a mistake at the desk, a request from the
+     * patient — are served by merging or correcting instead, both of which keep what was there.
+     *
+     * <p>The route stays so that it can say so: a 404 would leave the caller guessing whether the call failed or was
+     * never there, when what they need to know is that this is not available to anybody.
+     *
+     * @param id the id of the patient that must not be deleted.
+     * @return nothing; the call is always refused.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePatient(@PathVariable("id") Long id) {
         LOG.debug("REST request to delete Patient : {}", id);
-        patientService.delete(id);
-        return ResponseEntity.noContent()
-            .headers(HeaderUtil.createEntityDeletionAlert(applicationName, false, ENTITY_NAME, id.toString()))
-            .build();
+        throw BusinessRuleViolationException.of(
+            "patientNotDeletable",
+            "patient",
+            "A patient record is not deleted: a duplicate is merged and a mistake is corrected, so that everything naming this patient goes on meaning something"
+        );
     }
 }

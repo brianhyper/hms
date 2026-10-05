@@ -657,10 +657,33 @@ class PatientResourceIT {
         // Delete the patient
         restPatientMockMvc
             .perform(delete(ENTITY_API_URL_ID, patient.getId()).accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isNoContent());
+            // Refused for every role: a duplicate is merged and a mistake is corrected, so that everything naming
+            // this patient - their history, their bills, the record of who opened their chart - goes on meaning
+            // something.
+            .andExpect(status().isConflict());
 
-        // Validate the database contains one less item
-        assertDecrementedRepositoryCount(databaseSizeBeforeDelete);
+        // Validate the patient is still there
+        assertSameRepositoryCount(databaseSizeBeforeDelete);
+    }
+
+    /**
+     * The removal is refused in two layers, and this asserts the outer one. Administration holds the patient
+     * management rows and is still refused by the access rule, before the service is reached at all; the inner refusal
+     * is what the caller sees when a role does hold the row.
+     */
+    @Test
+    @Transactional
+    @WithMockUser(authorities = AuthoritiesConstants.ADMIN)
+    void deletePatientIsRefusedForAdministrationToo() throws Exception {
+        insertedPatient = patientRepository.saveAndFlush(patient);
+
+        long databaseSizeBeforeDelete = getRepositoryCount();
+
+        restPatientMockMvc
+            .perform(delete(ENTITY_API_URL_ID, patient.getId()).accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isForbidden());
+
+        assertSameRepositoryCount(databaseSizeBeforeDelete);
     }
 
     protected long getRepositoryCount() {
