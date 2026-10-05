@@ -461,6 +461,36 @@ class PrescriptionIT {
             });
     }
 
+    /**
+     * The property S3.7 exists for, end to end: a prescription is placed through the real workflow, the catalogue
+     * entry is then renamed, re-united and repriced the way a catalogue really is, and the stored line still answers
+     * with what was prescribed.
+     *
+     * <p>This is the half {@code DrugSnapshotTest} cannot reach. That test proves the rule copies the values; it says
+     * nothing about whether the workflow calls it, and a rule nobody invokes protects nothing.
+     */
+    @Test
+    void aPlacedLineKeepsTheDrugAsItWasWhenTheCatalogueIsChangedAfterwards() {
+        Visit visit = visitAwaitingDoctor();
+        Long prescriptionId = prescriptionService.place(visit.getId(), internal(line(paracetamol, 3))).getPrescriptionId();
+
+        // The catalogue is edited afterwards, which is what a catalogue edit looks like. Reloaded first, because
+        // placing the prescription reserved stock and that moved the drug's version: saving the stale instance the
+        // fixture held would be refused by optimistic locking, and rightly so.
+        paracetamol = reload(paracetamol);
+        paracetamol.setName("Renamed After The Prescription");
+        paracetamol.setUnit("sachet");
+        paracetamol.setPrice(new BigDecimal("99.99"));
+        drugRepository.saveAndFlush(paracetamol);
+
+        var stored = prescriptionLineRepository.findWithDrugByPrescriptionId(prescriptionId).getFirst();
+
+        assertThat(stored.getDrugName()).as("what was prescribed, not what the catalogue says now").isEqualTo("Paracetamol");
+        assertThat(stored.getDrugUnit()).as("the unit that was prescribed").isEqualTo("tablet");
+        assertThat(stored.getDrugPrice()).as("the price that applied when it was prescribed").isEqualByComparingTo(PARACETAMOL_PRICE);
+        assertThat(stored.getDrugName()).as("and the line still points at the entry it was prescribed from").isNotEqualTo("Renamed After The Prescription");
+    }
+
     // ---------------------------------------------------------------- the finance boundary
 
     /**
