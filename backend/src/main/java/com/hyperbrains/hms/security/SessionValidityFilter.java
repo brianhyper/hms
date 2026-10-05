@@ -51,6 +51,9 @@ public class SessionValidityFilter extends OncePerRequestFilter {
     private static final String SESSION_IDLE =
         "{\"errorKey\":\"sessionIdle\",\"message\":\"This session has ended: it went unused for longer than the idle time allowed\"}";
 
+    private static final String PASSWORD_CHANGE_REQUIRED =
+        "{\"errorKey\":\"passwordChangeRequired\",\"message\":\"This password was chosen for you and has to be replaced before the account can be used\"}";
+
     private final ObjectProvider<UserRepository> userRepository;
 
     public SessionValidityFilter(ObjectProvider<UserRepository> userRepository) {
@@ -86,14 +89,21 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         if (found.isPresent()) {
             UserRepository.SignInState account = found.orElseThrow();
             if (wasEnded(account, jwt)) {
-                refuse(response, SESSION_ENDED);
+                refuse(response, HttpStatus.UNAUTHORIZED, SESSION_ENDED);
+                return;
+            }
+            if (account.isPasswordChangeRequired() && !isOnTheWayToChangingThePassword(request)) {
+                // A password that was chosen for somebody has to be replaced before the account can do anything. The
+                // refusal is a 403 rather than a 401 because the caller is properly signed in — what is missing is
+                // not their identity but their own choice of password — and it carries a key a client can act on.
+                refuse(response, HttpStatus.FORBIDDEN, PASSWORD_CHANGE_REQUIRED);
                 return;
             }
 
             Instant now = Instant.now();
             Instant lastActivity = accounts.findLastActivityAtByLogin(jwt.getSubject()).orElse(null);
             if (SessionIdle.hasGoneIdle(lastActivity, jwt.getIssuedAt(), now)) {
-                refuse(response, SESSION_IDLE);
+                refuse(response, HttpStatus.UNAUTHORIZED, SESSION_IDLE);
                 return;
             }
             if (SessionIdle.shouldRecordActivity(lastActivity, now)) {
@@ -102,6 +112,19 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * The requests that are allowed while a password has to be changed: reading your own account, so a client can see
+     * who it is and what is being asked, and the change itself. Matched on the exact path and method rather than a
+     * prefix, so a lookalike route cannot slip through the exemption.
+     */
+    private static boolean isOnTheWayToChangingThePassword(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if ("/api/account".equals(path) && "GET".equals(request.getMethod())) {
+            return true;
+        }
+        return "/api/account/change-password".equals(path) && "POST".equals(request.getMethod());
     }
 
     /** Whether this token is older than the moment the account's sessions stopped being accepted. */
@@ -135,8 +158,8 @@ public class SessionValidityFilter extends OncePerRequestFilter {
         return Optional.empty();
     }
 
-    private static void refuse(HttpServletResponse response, String body) throws IOException {
-        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+    private static void refuse(HttpServletResponse response, HttpStatus status, String body) throws IOException {
+        response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.getWriter().write(body);
     }

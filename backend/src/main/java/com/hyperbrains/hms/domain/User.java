@@ -100,6 +100,17 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
     @Column(name = "last_activity_at")
     private Instant lastActivityAt;
 
+    /**
+     * Whether this account's password has to be replaced before the account can be used.
+     *
+     * <p>Set when the password was chosen for the account rather than by it — the generated one an account is
+     * created with — and cleared the moment the account sets one of its own, including through the reset link that
+     * is how a new member of staff reaches their account for the first time. That last part is load-bearing: without
+     * it, every account a Super Admin creates would be refused everything for ever.
+     */
+    @Column(name = "password_change_required", nullable = false)
+    private boolean passwordChangeRequired;
+
     @Size(min = 2, max = 10)
     @Column(name = "lang_key", length = 10)
     private String langKey;
@@ -227,6 +238,14 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     public void setLastActivityAt(Instant lastActivityAt) {
         this.lastActivityAt = lastActivityAt;
+    }
+
+    public boolean isPasswordChangeRequired() {
+        return passwordChangeRequired;
+    }
+
+    public void setPasswordChangeRequired(boolean passwordChangeRequired) {
+        this.passwordChangeRequired = passwordChangeRequired;
     }
 
     public String getActivationKey() {

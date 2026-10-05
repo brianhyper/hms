@@ -54,10 +54,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
         Instant getSessionsValidFrom();
 
         Instant getLockedAt();
+
+        boolean isPasswordChangeRequired();
     }
 
     @Query(
-        "select user.activated as activated, user.sessionsValidFrom as sessionsValidFrom, user.lockedAt as lockedAt from User user where user.login = :login"
+        "select user.activated as activated, user.sessionsValidFrom as sessionsValidFrom, user.lockedAt as lockedAt, user.passwordChangeRequired as passwordChangeRequired from User user where user.login = :login"
     )
     Optional<SignInState> findSignInStateByLogin(@Param("login") String login);
 

@@ -85,6 +85,10 @@ public class UserService {
                 user.setPassword(passwordEncoder.encode(newPassword));
                 user.setResetKey(null);
                 user.setResetDate(null);
+                // They chose it, so nothing is owed: arriving here through a reset link is how a new member of staff
+                // reaches their account for the first time, and leaving the requirement set would refuse them
+                // everything for ever.
+                user.setPasswordChangeRequired(false);
                 this.clearUserCaches(user);
                 auditLogService.record(
                     AuditLogService.Entry.of(AuditActions.PASSWORD_RESET_COMPLETED, "User", user.getId()).withDetails(
@@ -178,6 +182,9 @@ public class UserService {
         }
         String encryptedPassword = passwordEncoder.encode(RandomUtil.generatePassword());
         user.setPassword(encryptedPassword);
+        // Nobody chose this password, and it is not communicated to anybody: the account is reached through the reset
+        // key below, which is where the person sets one of their own and where this requirement is cleared.
+        user.setPasswordChangeRequired(true);
         user.setResetKey(RandomUtil.generateResetKey());
         user.setResetDate(Instant.now());
         user.setActivated(true);
@@ -435,6 +442,8 @@ public class UserService {
                 }
                 String encryptedPassword = passwordEncoder.encode(newPassword);
                 user.setPassword(encryptedPassword);
+                // The requirement is about who chose the password, so the person choosing one ends it.
+                user.setPasswordChangeRequired(false);
                 this.clearUserCaches(user);
                 auditLogService.record(
                     AuditLogService.Entry.of(AuditActions.PASSWORD_CHANGED, "User", user.getId()).withDetails(
