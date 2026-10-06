@@ -149,6 +149,9 @@ Each of these is a question, not a task: no code waits on anything else. Send th
    one month.
 6. **Payroll arithmetic.** Net is recorded rather than computed (Finance does the tax outside). Confirm, because it
    decides whether the system ever owns PAYE/NSSF figures.
+7. **Double shifts.** The roster is one row per person per day — the phase document's own wording — so a 12-hour day
+   followed by a 12-hour night on the same date is refused as well. Is that real here? If it is, the rule becomes one
+   row per person, per day, **per shift type**, which is one migration.
 
 **Answered already, no need to ask again:** the roster as the single source of truth (client ruling 1a), the
 break-glass scope, the identity-document age rule, the Employment Act retention decision, and the single-node v1.0

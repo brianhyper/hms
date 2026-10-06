@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Shift.
+
+        All three foreign keys are real references, not plain values: a shift without a person is not a roster, a
+        shift without a ward is still a shift, and the account that wrote the row has to be there because the roster
+        is the record of who decided who works when.
+
+        Deliberately not ON DELETE CASCADE. A staff record is never deleted - a member of staff who has left is
+        TERMINATED, which is what keeps the rota, the leave balance and the payslip pointing at a person who exists.
+        Cascading here would let a delete of anything upstream take the history of who was on duty with it.
+    -->
+    <changeSet id="20261006100001-2" author="hms">
+
+        <addForeignKeyConstraint baseColumnNames="staff_record_id"
+                                 baseTableName="shift"
+                                 constraintName="fk_shift__staff_record_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="staff_record"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="ward_id"
+                                 baseTableName="shift"
+                                 constraintName="fk_shift__ward_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="ward"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="created_by_id"
+                                 baseTableName="shift"
+                                 constraintName="fk_shift__created_by_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="jhi_user"
+                                 />
+    </changeSet>
+</databaseChangeLog>

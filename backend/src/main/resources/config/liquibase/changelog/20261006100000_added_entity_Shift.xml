@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity Shift: Phase 4's P4.1, and the roster gate.
+
+        WHY IT EXISTS
+        The client's ruling 1a makes the roster the single source of truth for "who is on duty". Today that question
+        is answered by ward_cover, which says which doctor covers which ward for a period - a second writable table
+        stating its own answer. Two tables that both claim to say who is on duty always diverge, and the divergence
+        is found during an incident. This table becomes the answer; ward_cover becomes read-only for one release and
+        its rows become shifts.
+
+        WHY staff_record_id AND NOT user_id
+        A shift belongs to a person, not to an account. The roster has to hold the people who never sign in - a
+        cleaner, a porter, a driver - and a member of staff is a person's employment while an account is their
+        credentials. Rostering the account would leave everyone without one unrostered, and a ward that cannot see
+        the porter on duty is a ward that cannot find them. The link from staff_record to a login stays optional and
+        points the other way.
+
+        WHY shift_date IS A DATE SEPARATE FROM THE TIMES
+        The roster is read as a calendar: "who is on Thursday" must have one answer whatever the clock says. A night
+        shift that runs past midnight still belongs to the day it started, which is why the day is a column of its
+        own rather than being derived from starts_at.
+
+        WHY ward_id IS NULLABLE
+        A shift can be on no particular ward - a porter's, or a matron's across the hospital. Refusing that would
+        force a placeholder ward into the data, and the roster would carry that lie for as long as it existed.
+
+        WHY (staff_record_id, shift_date) IS UNIQUE
+        One person, one shift a day - the phase document's own wording, and what makes "who is on Thursday" a single
+        answer. The consequence to keep in mind: it also refuses a genuine double shift (a 12-hour day followed by a
+        12-hour night on the same date). If that is real at this hospital, the index becomes
+        (staff_record_id, shift_date, shift_type) in one migration - which is why it is written down here rather than
+        left for someone to discover from a failed insert.
+
+        WHY THERE IS NO SAMPLE DATA
+        Same reason as staff_record: invented people on invented shifts are fabricated employment records, and a
+        development database has a way of becoming a real one. A fresh database starts with an empty roster.
+    -->
+    <changeSet id="20261006100000-1" author="hms">
+        <comment>Add the shift table: who is on duty, when, and where</comment>
+        <createTable tableName="shift">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="shift_date" type="date" remarks="The day the roster reads; a shift past midnight belongs to the day it started">
+                <constraints nullable="false" />
+            </column>
+            <column name="shift_type" type="varchar(20)" remarks="DAY or NIGHT today; stored as a string, so a value added later needs no migration">
+                <constraints nullable="false" />
+            </column>
+            <column name="starts_at" type="time">
+                <constraints nullable="false" />
+            </column>
+            <column name="ends_at" type="time">
+                <constraints nullable="false" />
+            </column>
+            <column name="note" type="varchar(500)">
+                <constraints nullable="true" />
+            </column>
+            <column name="staff_record_id" type="bigint">
+                <constraints nullable="false" />
+            </column>
+            <column name="ward_id" type="bigint" remarks="Optional: a porter or a matron is on duty with no particular ward">
+                <constraints nullable="true" />
+            </column>
+            <column name="created_by_id" type="bigint">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+        <addUniqueConstraint
+            columnNames="staff_record_id, shift_date"
+            constraintName="ux_shift__staff_record__shift_date"
+            tableName="shift"/>
+    </changeSet>
+</databaseChangeLog>

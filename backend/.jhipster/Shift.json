@@ -1,0 +1,65 @@
+{
+  "annotations": {
+    "changelogDate": "20261006100000"
+  },
+  "applications": ["*"],
+  "documentation": "Who is on duty, when, and where. The single source of truth for who is on duty (client ruling 1a); ward_cover becomes a view of it. A shift belongs to a StaffRecord rather than to a User, because the roster must hold the people who never sign in.",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "shiftDate",
+      "fieldType": "LocalDate",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "shiftType",
+      "fieldType": "ShiftType",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "DAY,NIGHT"
+    },
+    {
+      "fieldName": "startsAt",
+      "fieldType": "LocalTime",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "endsAt",
+      "fieldType": "LocalTime",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "note",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "500"
+    }
+  ],
+  "name": "Shift",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "staffRecord",
+      "relationshipName": "staffRecord",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "ward",
+      "relationshipName": "ward",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityField": "login",
+      "otherEntityName": "user",
+      "relationshipName": "createdBy",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required",
+      "relationshipWithBuiltInEntity": true
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceImpl"
+}
