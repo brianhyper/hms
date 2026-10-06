@@ -48,8 +48,8 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 | S3.1 | Account lifecycle: users are never deleted, the last active Super Admin cannot be deactivated, a Super Admin cannot downgrade themselves, and account/role changes are audited with the previous and new role | S3.0 | **delivered** (`55495bf`) |
 | S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **delivered** — forced first-login change (`a8fa154`), one-time reset tokens under a row lock (`78926c3`), the admin initial-password action that makes the first of those reachable (`94d6e9c`), and the revocation, lockout and idle timeout halves recorded below |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **delivered** — the read is named as a read and writes are refused outright (`7d75e39`) |
-| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | **delivered** (`b3c98c6`) — one entry per chart open, written only for a chart that was actually opened, so a failed or refused request leaves nothing to be mistaken for access. `EDIT` actions are not recorded yet |
-| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | **not started, and unblocked 2026-10-06.** Who may override is answered by the client's break-glass ruling below (pharmacist or doctor at the point of care; existing prescription plus mandatory reason; single-step, reviewed afterwards). The **billing/discharge** gate still has no plug-in point — it is a status hold on the visit, and the override the phase means belongs to the discharge operation, which does not exist (Phase 4) — **but the dispensing gate is a real, existing caller** (`DispenseWorkflowServiceImpl.dispense`), so build the mechanism against that first |
+| S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | **delivered** (`b3c98c6`) — one entry per chart open, written only for a chart that was actually opened, so a failed or refused request leaves nothing to be mistaken for access. `EDIT` actions are recorded too (`639198c`) |
+| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | **delivered** — the mechanism itself (`a4c425a`) and its first real caller (`5e2b5fa`). Who may override is answered by the client's break-glass ruling below (pharmacist or doctor at the point of care; existing prescription plus mandatory reason; single-step, reviewed afterwards). The **billing/discharge** gate has no plug-in point yet and cannot get one until the discharge operation exists — there is still no discharge route in the application (Phase 2 slice 9). The dispensing gate was the real, existing caller, so the mechanism is live rather than dormant |
 | S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **delivered** — all nine services guarded (`6416e58`, `e5b6992`, `a9c80bd`), plus vitals, which failed the status-or-amount test because every column is a measurement and so is refused outright (`f340471`). Two gaps left inside it, both recorded below: **creating** by hand is still open on all nine, and references are not guarded because the shared guard compares them by identity |
 | S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | **delivered** — recorded on both line types and populated by one rule (`ab0c42f`), proven adversarially and end to end (`a0e4aea`), and read back by all three views, which had been showing the renamed catalogue entry instead (`28a03cc`, `a9bf047`). The columns are nullable on purpose for rows written before the snapshot existed |
 | S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **delivered** — it is Phase 4's P4.0, built when Phase 4 started |
@@ -183,11 +183,14 @@ confirms to an anonymous caller that the account exists. That is JHipster's orig
 genuine activation-pending user why they cannot sign in, but it is the same class of disclosure that was
 rejected for the lock.
 
-### Handoff gaps
+### Handoff gaps — residue, not an open phase
 
-Open things this phase leaves behind, in one place so they are not rediscovered. None of these is a slice that can
-simply be picked up; each is either a decision, a legal question, or a deployment change. The full gate was green over
-this list at `a0e4aea`: 405 unit and 1035 integration tests, 0 failures, 0 skipped, 0 checkstyle violations.
+**Phase 3 is closed.** All ten slices, S3.0 through S3.9, are delivered, and the gate was green at `63e6372` when this
+was written. What follows is the residue the phase leaves behind, kept in one place so it is not rediscovered. It is a
+**backlog, not a slice list**: none of these is a slice that can simply be picked up, each is a decision, a legal
+question, a deployment change, or an item another group already owns (Ruling 4, Group B, Group C3). **Moving on to
+Phase 4 does not wait on any of it** — the previous wording here was read as the phase's own status, which is how a
+finished phase kept looking unfinished.
 
 1. **Creating clinical and financial records by hand is still open.** S3.6 guards edits on all nine services, but
    `POST` on those generated routes can still create a payment, bill, execution, dispense, order, prescription line or
@@ -211,8 +214,8 @@ this list at `a0e4aea`: 405 unit and 1035 integration tests, 0 failures, 0 skipp
    taking an account over, and it is visible to anyone who opens their mail the next morning.
 7. **Revocation freshness depends on a single-node local cache** (ruling 2), and **staff erasure is deferred**
    (ruling 6). Both stand as recorded there.
-8. **`PatientAccessLog` records `VIEW` only.** The phase's wording is "an action type such as `VIEW` or `EDIT`";
-   corrections and updates to a patient record do not produce an entry.
+8. ~~**`PatientAccessLog` records `VIEW` only.**~~ — **closed.** `EDIT` is recorded as well (`639198c`), and the
+   patient delete route is refused for every role rather than deleting the log with its subject (`df59020`).
 
 ### Open questions
 

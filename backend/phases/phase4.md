@@ -29,13 +29,21 @@ Performance/Disciplinary
 StaffRecordNote: staffRecord (FK), type PERFORMANCE/DISCIPLINARY, date, recordedBy (HR), note, audited.
 Plain searchable log, not a structured review system — no ratings, templates, or escalation tiers.
 
-All four domains are now locked: Phase 1 (Outpatient), Phase 2 (Inpatient), Phase 3 (Admin/Security), Phase 4 (HR). Before calling the full spec complete for handoff, still open:
+Phase 1 (Outpatient), Phase 2 (Inpatient) and **Phase 3 (Admin/Security) are closed** — every Phase 3 slice S3.0-S3.9 is
+delivered. Phase 4 has **P4.0 (`StaffRecord`) delivered**; P4.1-P4.4 are to build.
 
-Doctor's-round clinical-note decision (Inpatient gap #1)
-Bed-day/doctor's-round billing — blocked on real client rates
-Discharge outcome type (referred-out/AMA/absconded/deceased)
-AdHocCharge's missing Bill/Visit FK link
-Value-guard layer (stopping Super Admin from hand-editing status/amount fields) — not started
+**What is genuinely left before the spec is complete for handoff**, verified against the code on 2026-10-06, not read
+off this document:
+
+| Left | Where it stands | Waits on |
+|---|---|---|
+| **Discharge and its outcomes** (Phase 2 slice 9) | **Not built.** No discharge route exists anywhere in `web/rest`; no outcome type; `VisitStatusService.onDischarged` is called by a test and by nothing else, and `dischargedAt`/`dischargeNote`/`dischargedByDoctor`/`dischargedByNurse` are columns nothing reaches | Nothing — and it is the second gate, because it is S3.5's missing plug-in point |
+| **Stay billing: daily bed-day charges** (Phase 2 slice 6) | **Not built.** `BillLineSourceType` is still `CONSULTATION, LAB, RADIOLOGY, PHARMACY` — no `BED_DAY`, no `DOCTOR_ROUND`, no `ADHOC` — and there is no daily-charge code at all | Real client rates. Build it anyway: the rates are catalogue rows, so the missing rates change data, not code |
+| **Doctor's daily round**, and the round's clinical note (Inpatient gap #1) | Not built | Question 3 below, plus rates |
+| **`AdHocCharge` has no `Bill`/`Visit` FK** | Still open: the entity carries `admission`, `serviceCatalogue`, `addedBy`, `voidedBy` and nothing else, so a charge Finance records never reaches a bill | Nothing |
+| **The payment-plan agreement** (Phase 2 slice 7) | `PaymentPlan` exists as a table; its RBAC row still says writes are Super Admin "until slice 7 builds the agreement itself" | Nothing |
+| **The value-guard layer** | **Not "not started" — it is S3.6, which is delivered.** What is left of it is Ruling 4 (create-by-hand) and the reference guards, both folded into Group C3 | Nothing |
+| **Phase 4 P4.1-P4.4** | Not started | Questions 4-6 below; P4.1 additionally waits on the roster gate |
 ---
 
 ## Slice plan and prerequisites (engineering, 2026-09-30)
@@ -99,23 +107,49 @@ by hand, `mvnw verify` before it is committed, and its own RBAC rows — the `/a
 5. **Payroll arithmetic** — the document says net is recorded, not computed (Finance does the tax maths
    outside). Confirming, because it decides whether the system ever owns PAYE/NSSF/PAYE figures.
 
-### Phase 3 items that are still open
+### Phase 3 residue — a backlog, not a gate
 
-Phase 3 is not closed. Outstanding, in the order I would take them:
+**Phase 3 is closed: S3.0-S3.9 are all delivered.** What follows is residue, and none of it holds this phase:
 
-- **S3.2 authentication hardening** — 5 failed attempts, 30-minute idle timeout, forced password change on
-  first login, and **revoking live tokens when an account is deactivated**, which is the case this was raised
-  for: a deactivated account keeps working until its token expires. Independent of this phase.
-- **The value-guard layer** (listed above) — the other half of the domain-operation rule.
+- **Ruling 4 — refuse create-by-hand on the nine services.** The nine `POST` routes still create payments, bills,
+  executions, dispenses, orders, lines and ward covers. Nothing outside the generated resources calls those `save`
+  methods, so refusing them is safe; the cost is the generated create tests.
+- **Group C3 — the value-guard layer**, with its one structural test: a reference field on a guarded entity must be
+  classified fixed-after-create or free, and the build fails if it is neither.
+- **The handoff gaps** in `phase3.md`: the raw `PUT /api/patients/{id}`, `VitalSigns` corrections editing in place,
+  the reset key in clear text (and the 500 on a spent link), and the one-day reset link.
+- **Group B — `POST /api/admin/users/{login}/initial-password`**, which contradicts the link-only rule.
+- **The unscoped record-history route**, which lets every clinical role read a staff record's history.
+
+*A correction worth keeping:* this section used to list **S3.2, S3.3, S3.4, S3.5 and S3.7 as outstanding**, and all five
+are delivered (`a8fa154`/`78926c3`/`94d6e9c`, `7d75e39`, `b3c98c6`, `a4c425a`/`5e2b5fa`, `ab0c42f`/`a0e4aea`). Read as
+the phase's status, that list made Phase 3 look five slices from done when it was none.
+
 - **Admission/Bed folded into `WorkflowOwnedFields`** — **closed by ruling, 2026-10-06: not to be done.** Attempted on
   2026-09-30 and reverted: comparing references by id threw against Hibernate-backed references and turned every
   guarded PUT/PATCH into a 500, including the edits that must be allowed. Both services compare their own references
   by id already (`Admission.primaryDoctor`, `Bed.ward`), against stored ids read as scalars rather than through a
   proxy, and their guards work; the shared helper would have been a cosmetic consolidation, not a fix. Closed rather
   than left open so that it is not attempted a third time. What is left of the whole question is one structural test
-  (Group C3): a reference field on a guarded entity must be classified fixed-after-create or free, and fails the build
-  if it is neither.
-- **S3.4** `PatientAccessLog`, **S3.5** the standard override mechanism (Administration, mandatory reason),
-  **S3.7** the drug name/price snapshot on prescription and dispense lines, **S3.3** audit-action constants
-  for the account events.
-but 
+  (Group C3).
+
+### Questions for the client — one page
+
+Each of these is a question, not a task: no code waits on anything else. Send them as they are.
+
+1. **Rates.** Bed-day rate per bed type, the doctor's daily round, and a specialist consultation. Until these exist
+   they are catalogue rows (`HospitalService`), so the slice is built with them as data — but nobody can price a stay
+   without them.
+2. **Discharge outcomes.** Confirm the list to implement (referred out / discharged against advice / absconded /
+   deceased) and whether the two sign-offs are doctor **then** nurse, or either order.
+3. **The doctor's round.** Is there a clinical note with it, and does that note hang off the round or off the stay?
+4. **SICK leave.** The Act's full-pay and half-pay split, and whether the ANNUAL accrual date is the employment start
+   date or the calendar year.
+5. **Pay period.** A calendar month, or explicit start and end dates? It decides whether two entries can coexist for
+   one month.
+6. **Payroll arithmetic.** Net is recorded rather than computed (Finance does the tax outside). Confirm, because it
+   decides whether the system ever owns PAYE/NSSF figures.
+
+**Answered already, no need to ask again:** the roster as the single source of truth (client ruling 1a), the
+break-glass scope, the identity-document age rule, the Employment Act retention decision, and the single-node v1.0
+acceptance.

@@ -13,6 +13,11 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
+**Where the phases stand (2026-10-06).** Phases 1, 2 and 3 are closed — for Phase 3 that means all ten slices S3.0-S3.9
+are delivered. Phase 4 has P4.0 (`StaffRecord`) delivered. **Two gates stand in front of Phase 4**: the roster
+(`Shift`, item 1) and discharge (item 2). Nothing else waits on a person except the six questions in `phase4.md`
+("Questions for the client"), and Phase 3's residue is a backlog rather than an open phase.
+
 ## Done
 
 | Slice | What | Commit |
@@ -36,40 +41,44 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 
 ## Next, in order
 
-1. **Ruling 5 (continued) — stopped by ruling, 2026-10-06.** The money case is done and it is the one that mattered:
-   the link lives on `Bill.payment`, which owns the foreign key, and it is guarded by id (`588201a`).
-   `Payment.bill` is the inverse side (`mappedBy`) and has nothing to re-point, so `Payment`'s service needed no
-   reference guard of its own. The remaining services still exclude their references from the field-name guard, so a
-   hand-written update can re-point them: `Dispense` (its prescription), `OrderExecution` (its order), `BillLineItem`
-   (its bill), `DiagnosticOrder` and `Prescription` (their visit and doctor), and `DoctorOrder` (its admission).
-   **Do not work through these one at a time** — they fold into Group C3, item 9. `Admission`/`Bed` compare by id
-   already and are closed as well (`phase4.md`).
-2. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
+1. **The roster gate (Ruling 1) — the gate for Phase 4, decided and unbuilt.** `Shift` owns who is on duty when; "who
+   is covering this ward now" becomes a query over it; existing `WardCover` rows become shifts and `WardCover` goes
+   read-only for one release; the `inForce` rule moves onto the shift. Nothing blocks it: the source-of-truth question
+   was answered on 2026-10-06 (option 1, client ruling 1a), and shift-type values can be added later without a
+   migration because the type is stored as a string.
+2. **Discharge, with outcomes (Phase 2 slice 9) — the second gate.** There is no discharge route in the application
+   today: `VisitStatusService.onDischarged` is called by a test and by nothing else, and the columns it writes exist
+   with nothing that reaches them. It is also what unblocks S3.5's real plug-in point.
+3. **Stay billing (Phase 2 slice 6)** — daily bed-day charges with timezone, idempotency and catch-up, the doctor's
+   round, and an `ADHOC` line from `AdHocCharge` so a charge Finance records reaches the bill. Build it with the rates
+   as catalogue data: the client's real rates change rows, not code.
+4. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
-3. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
-   Now answered (client ruling 1a): the roster is the single source of truth.
-4. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
+5. **Group C3 — the value-guard layer**, the status-bearing entities the rest of Ruling 5 named, plus one structural
+   test: a reference field on a guarded entity must be classified fixed-after-create or free, and fails the build if it
+   is neither. **Ruling 5's service-by-service work is stopped** — the money link is guarded (`588201a`) and
+   `Admission`/`Bed` compare by id already. What C3 inherits: `Dispense` (its prescription), `OrderExecution` (its
+   order), `BillLineItem` (its bill), `DiagnosticOrder` and `Prescription` (their visit and doctor), `DoctorOrder` (its
+   admission).
+6. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
    requester and approver different people).
-5. **Handoff gap — `Patient` still has the raw update** its own correction route exists to replace: `PUT /api/patients/{id}`
-   can change a name, an allergy or a date of birth with no reason and no record. Super-Admin-only, but it is the one
-   path that can still undo the identity rule (see `phase3.md` handoff item 3).
-6. **Handoff gap — `VitalSigns` corrections edit in place**: the superseded reading survives only as the audit
+7. **Phase 4 P4.2-P4.4** — `LeaveRequest`, `StaffRecordNote` and `PayrollEntry`, which wait on the client answers in
+   `phase4.md`; P4.1 is the roster in item 1.
+8. **Handoff gap — `Patient` still has the raw update** its own correction route exists to replace: `PUT
+   /api/patients/{id}` can change a name, an allergy or a date of birth with no reason and no record. Super-Admin-only,
+   but it is the one path that can still undo the identity rule (see `phase3.md` handoff item 3).
+9. **Handoff gap — `VitalSigns` corrections edit in place**: the superseded reading survives only as the audit
    `oldValue`. `InpatientVitals` does it properly, with a new row and a `corrects` reference.
-7. **Handoff gap — the reset key is stored in clear text**, and an expired, spent or unknown reset link answers **500**
-   instead of 400.
-8. **Handoff gap — reset links live for one day**; minutes to hours is right for a token that takes over an account.
-9. **Group C3 — the value-guard layer**, which already covers the status-bearing entities the rest of Ruling 5 named.
-   It gets **one structural test**, not a second mechanism: a reference field on a guarded entity must be classified
-   either fixed-after-create or free, and the build fails if it is neither. That is the whole of the reference-guard
-   question; `WorkflowOwnedFields.referenceChanged` plus a scalar projection is the mechanism it tests.
-10. **Group B — remove or disable `POST /api/admin/users/{login}/initial-password`.** It sets a password on somebody
-    else's behalf and contradicts the link-only rule S3.2 settled on: an account is handed a link, and only the person
-    who owns it ever chooses its password. Found by reading the route catalogue.
-11. **`GET /api/record-history/{entityName}/{entityId}` is unscoped.** It is one route for every entity, admitted by
-    one row (`NURSE`, `DOCTOR`, `ADMIN`, `SUPER_ADMIN`), and `AuditLogServiceImpl.trail` filters by entity name and id
-    only - so every clinical role can read a `StaffRecord`'s history and a `User`'s history. Staff-record history is
-    employment data and account history is security data, and both must be HR and Super Admin only. Needs per-entity
-    scoping in the service (an endpoint rule cannot express it: the entity is a path variable).
+10. **Handoff gap — the reset key is stored in clear text**, and an expired, spent or unknown reset link answers **500**
+    instead of 400.
+11. **Handoff gap — reset links live for one day**; minutes to hours is right for a token that takes over an account.
+12. **Group B — remove or disable `POST /api/admin/users/{login}/initial-password`.** It sets a password on somebody
+    else's behalf and contradicts the link-only rule S3.2 settled on: an account is handed a link, and only its owner
+    ever chooses its password.
+13. **`GET /api/record-history/{entityName}/{entityId}` is unscoped.** One route for every entity, admitted by one row
+    (`NURSE`, `DOCTOR`, `ADMIN`, `SUPER_ADMIN`), and `AuditLogServiceImpl.trail` filters by entity name and id only - so
+    every clinical role can read a `StaffRecord`'s history and a `User`'s history. Both must be HR and Super Admin only.
+    Needs per-entity scoping in the service (an endpoint rule cannot express it: the entity is a path variable).
 
 ## Reports asked for, and their answers
 
