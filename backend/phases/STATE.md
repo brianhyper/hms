@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `5e2b5fa` (0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `b347ff1` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -28,11 +28,12 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | S3.5 | override/emergency-access mechanism: own audit event, mandatory reason, acting role, one-query review; no caller yet | `a4c425a` |
 | Ruling 5 | id-based reference guard in `WorkflowOwnedFields`; applied to `PrescriptionLine` (drug, prescription) | `dc55537` |
 | — | Break-glass release wired to the dispensing gate: scope, invoker, mandatory reason, own audit event, Administration review route | `5e2b5fa` |
+| Ruling 5 | id-based reference guard applied to `WardCover` (ward, doctor, assignedBy) | `b347ff1` |
 
 ## Next, in order
 
-1. **Ruling 5 (continued)** — apply the id-based reference guard to the other services that own a reference, one
-   at a time: `WardCover` (ward, doctor), then the admission/bed guards. `changed` is untouched; the new
+1. **Ruling 5 (continued)** — apply the id-based reference guard to the remaining services that own a reference, one
+   at a time: the admission/bed guards (`Admission`, `Bed`). `changed` is untouched; the new
    `WorkflowOwnedFields.referenceChanged` compares plain ids, never a proxy. Re-pointing refused, same id accepted.
 2. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
@@ -40,6 +41,14 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
    Now answered (client ruling 1a): the roster is the single source of truth.
 4. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
    requester and approver different people).
+5. **Handoff gap — `Patient` still has the raw update** its own correction route exists to replace: `PUT /api/patients/{id}`
+   can change a name, an allergy or a date of birth with no reason and no record. Super-Admin-only, but it is the one
+   path that can still undo the identity rule (see `phase3.md` handoff item 3).
+6. **Handoff gap — `VitalSigns` corrections edit in place**: the superseded reading survives only as the audit
+   `oldValue`. `InpatientVitals` does it properly, with a new row and a `corrects` reference.
+7. **Handoff gap — the reset key is stored in clear text**, and an expired, spent or unknown reset link answers **500**
+   instead of 400.
+8. **Handoff gap — reset links live for one day**; minutes to hours is right for a token that takes over an account.
 
 ## Waiting on a person
 
