@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `dc55537` (0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `5e2b5fa` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -27,33 +27,25 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | — | Patient identity: required above 19 at registration, explicit `PENDING` marker, pending worklist, correction completes it | `2763195` |
 | S3.5 | override/emergency-access mechanism: own audit event, mandatory reason, acting role, one-query review; no caller yet | `a4c425a` |
 | Ruling 5 | id-based reference guard in `WorkflowOwnedFields`; applied to `PrescriptionLine` (drug, prescription) | `dc55537` |
+| — | Break-glass release wired to the dispensing gate: scope, invoker, mandatory reason, own audit event, Administration review route | `5e2b5fa` |
 
 ## Next, in order
 
-1. **Break-glass wiring — release medicine before the bill is settled.** The mechanism is built and committed
-   (`a4c425a`, S3.5). What remains is the caller: the dispensing gate (`DispenseWorkflowServiceImpl.dispense`),
-   invoked by the **pharmacist or doctor at the point of care** for an existing doctor's prescription, leaving the bill
-   OUTSTANDING and reviewed afterwards by Administration. **Blocked on** the confirmed scope (emergency-triaged visits
-   and admitted patients) and the Article 43(2) check. Note: inpatients already bypass the gate
-   (`initialStatusForInpatient()`), so the genuinely blocked path is the **emergency-triaged outpatient**.
-2. **Ruling 5 (continued)** — apply the id-based reference guard to the other services that own a reference, one
+1. **Ruling 5 (continued)** — apply the id-based reference guard to the other services that own a reference, one
    at a time: `WardCover` (ward, doctor), then the admission/bed guards. `changed` is untouched; the new
    `WorkflowOwnedFields.referenceChanged` compares plain ids, never a proxy. Re-pointing refused, same id accepted.
-3. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
+2. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
-4. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
+3. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
    Now answered (client ruling 1a): the roster is the single source of truth.
-5. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
+4. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
    requester and approver different people).
 
 ## Waiting on a person
 
-- **Verify Article 43(2) of the Constitution** protects emergency treatment, with the client or a lawyer, before the
-  break-glass design leans on it.
-- **Confirm the break-glass scope** with the client: emergency-triaged visits and admitted patients only.
-- **Employment Act retention period** — read section 10(6) and (7). Five years is believed, not confirmed, and the
-  citation is a party's submission, not a ruling. Until then do not build staff erasure: a terminated record stays,
-  HR and Super Admin only (handoff gap).
+- Nothing blocks the queue. **Article 43(2)** was accepted (proceed), the **break-glass scope** was confirmed, and the
+  **Employment Act retention** was decided **not to be implemented** — a terminated record stays, HR and Super Admin
+  only, recorded as a handoff gap. The last two are written into `phase3.md`'s client rulings.
 
 ## Rules that cost time to learn
 

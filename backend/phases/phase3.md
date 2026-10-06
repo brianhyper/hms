@@ -107,9 +107,9 @@ The client's answers to the items that were waiting on a person, plus the break-
 left in a conversation, which is the reason this section exists.
 
 - **Break-glass is named: emergency medicine release before the bill is settled.** It follows the no-detention decision
-  — withholding emergency treatment over money has the same legal and clinical problem. Legally it is believed to rest
-  on **Article 43(2) of the Constitution** protecting emergency treatment, which must be **verified with the client or a
-  lawyer** before the design leans on it.
+  — withholding emergency treatment over money has the same legal and clinical problem. Legally it rests on **Article
+  43(2) of the Constitution** protecting emergency treatment: **the client instructed on 2026-10-06 to proceed on it**,
+  so the design no longer waits on it. A lawyer may still confirm the citation, which would change nothing in the code.
   - **Invoked by:** the pharmacist or doctor **at the point of care** — not Super Admin, and not someone who has to be
     found first.
   - **Requires:** an existing doctor's prescription and a **mandatory reason**. It releases medicine already
@@ -117,7 +117,9 @@ left in a conversation, which is the reason this section exists.
   - **Recorded as:** its **own audit event**, so an override is distinguishable from an ordinary hand-over. The **bill
     stays `OUTSTANDING`** — a receivable collected later, not a write-off.
   - **Reviewed afterwards by:** Administration. The second person comes after the act, not before it.
-  - **Scope:** emergency-triaged visits and admitted patients only — **to be confirmed with the client**.
+  - **Scope (CONFIRMED 2026-10-06):** emergency-triaged visits and admitted patients only. In the model the emergency
+    signal is `VisitPriority.EMERGENCY` — what triage sets and what the queues sort on — plus `VisitType.EMERGENCY` for
+    a visit handed in as one; admitted is `VisitType.ADMISSION`.
   - **Checked first (2026-10-06), because without a gate the case does not exist.** The outpatient dispense gate is
     real: `DispenseWorkflowServiceImpl.dispense` refuses anything not `DISPENSABLE` with `prescriptionNotReadyForDispense`,
     and a prescription reaches `READY_FOR_DISPENSE` only `afterPayment`. **But the inpatient path already bypasses it**
@@ -126,6 +128,12 @@ left in a conversation, which is the reason this section exists.
     patients the release already happens; what is missing there is the audited event, the reason and the review. The
     genuinely blocked path — and S3.5's first **existing** plug-in point — is the **emergency-triaged outpatient** on
     the ordinary outpatient status cycle.
+  - **Wired 2026-10-06 (`5e2b5fa`).** `DispenseWorkflowServiceImpl` releases a prescription that is still awaiting
+    payment when the visit is in the scope, the caller is one of the two roles, and `overrideReason` is supplied; the
+    override is recorded through `OverrideService` and the bill is left alone, so it stays outstanding.
+    `BreakGlass.isInScope` holds the scope, `BreakGlass.mayBeInvokedBy` the invoker policy, and `GET /api/overrides`
+    (Administration and Super Admin only) is the retrospective review. A withdrawn prescription is never released, and
+    an out-of-scope visit cannot use it at all.
 - **Roster (client ruling 1a): one source of truth, the roster.** `Shift` owns who is on duty when, "who is covering
   this ward now" is a query over it, and existing `WardCover` rows become shifts. It runs as its own gate and gates
   Phase 4. See decision 4 in `phase4.md` and `blockers-research.md` §3.
@@ -137,11 +145,11 @@ left in a conversation, which is the reason this section exists.
   `PUT /api/patients/{id}` is still an unguarded raw update that could set the marker — the same pre-existing gap as
   handoff item 3 below — and the generated TypeScript enum was not regenerated, so the generated entity form does not
   offer the new value.
-- **Employment Act: records must be kept after termination, so staff erasure is not built** — closing the open half of
-  ruling 6 above. Section 74 requires every employer to keep work records, and courts treat missing records as the
-  employer's failure. The retention **period** is unconfirmed: a court filing points to section 10(6) and (7) and five
-  years is believed, but that is a submission, not a ruling, so read the subsections before promising a number. A
-  **terminated record stays**, visible only to HR and Super Admin, and is recorded as a **handoff gap**.
+- **Employment Act: retention is deliberately NOT implemented (client decision, 2026-10-06)** — closing the open half
+  of ruling 6 above. Section 74 requires every employer to keep work records and courts treat missing records as the
+  employer's failure, so **nothing is built to erase or expire them**: a **terminated record stays**, visible only to HR
+  and Super Admin, recorded as a **handoff gap** rather than a slice. The statutory period (a court filing points to
+  section 10(6) and (7); five years is believed) remains unread and no longer blocks anything.
 - **Single node for v1.0.** Ruling 2's handoff line — revocation freshness depends on a single-node local cache — is
   accepted for v1.0 rather than fixed. A shared cache or a stamp read is only needed if a second node is ever added.
 
