@@ -111,5 +111,17 @@ public final class AuditActions {
      */
     public static final String USER_LOCK_EXPIRED = "USER_LOCK_EXPIRED";
 
+    // -----------------------------------------------------------------------------
+    // Overrides (S3.5)
+    // -----------------------------------------------------------------------------
+
+    /**
+     * An action went ahead without its usual precondition, with a reason.
+     *
+     * <p>Its own action rather than the ordinary one, because an override that is indistinguishable from a normal
+     * write in the trail is the thing to avoid: this is the value the retrospective review is a query over.
+     */
+    public static final String OVERRIDE_GRANTED = "OVERRIDE_GRANTED";
+
     private AuditActions() {}
 }

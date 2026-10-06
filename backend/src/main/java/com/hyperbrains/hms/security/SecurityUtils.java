@@ -121,6 +121,20 @@ public final class SecurityUtils {
         return hasCurrentUserAnyOfAuthorities(authority);
     }
 
+    /**
+     * The authorities of the current user, empty when nobody is signed in.
+     *
+     * <p>Read-only and for attribution: it exists so an audit entry can name the role an action was taken in, which
+     * is not the same as the roles the account holds when the trail is read.
+     */
+    public static List<String> getCurrentUserAuthorities() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return List.of();
+        }
+        return getAuthorities(authentication).toList();
+    }
+
     private static Stream<String> getAuthorities(Authentication authentication) {
         return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority);
     }

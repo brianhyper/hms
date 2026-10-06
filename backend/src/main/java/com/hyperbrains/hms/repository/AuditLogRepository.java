@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.AuditLog;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -73,4 +74,16 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         @Param("entityName") String entityName,
         @Param("entityIds") Collection<String> entityIds
     );
+
+    /**
+     * Every entry of one action at or after a moment, newest first, with the actor joined in.
+     *
+     * <p>This is the one query the override review is: "every override in the last month" is the report that makes
+     * break-glass accountable. The id breaks ties so the order stays stable when two entries share a timestamp.
+     */
+    @Query(
+        "select a from AuditLog a left join fetch a.actor " +
+        "where a.action = :action and a.performedAt >= :from order by a.performedAt desc, a.id desc"
+    )
+    List<AuditLog> findByActionSince(@Param("action") String action, @Param("from") Instant from);
 }
