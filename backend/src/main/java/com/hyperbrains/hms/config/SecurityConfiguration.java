@@ -93,11 +93,17 @@ public class SecurityConfiguration {
                     // even though it runs the hospital's day-to-day operations.
                     // ===============================================================
                     .requestMatchers("/api/admin/**").hasAuthority(SUPER_ADMIN)
-                    // The role list is what roles are handed out from, so it is system administration's. It is
+                    // The role list is what roles are handed out from, so it is system administration's to read. It is
                     // each method annotated as well, and this row is here because an annotation is a rule that
                     // only the method knows: the table is supposed to be the one place that says who may reach
                     // what, and a route with no row is a route the table cannot answer for.
-                    .requestMatchers("/api/authorities", "/api/authorities/**").hasAuthority(SUPER_ADMIN)
+                    //
+                    // Reading is all that is open. A role that exists is one some code checks for, so creating or
+                    // deleting one over HTTP changes what the application does rather than what it records, and the
+                    // roles are seeded with the application. The write routes stay on the generated resource and are
+                    // refused here, which is where every other authorisation decision in the application lives.
+                    .requestMatchers(HttpMethod.GET, "/api/authorities", "/api/authorities/**").hasAuthority(SUPER_ADMIN)
+                    .requestMatchers("/api/authorities", "/api/authorities/**").denyAll()
                     .requestMatchers("/v3/api-docs/**").hasAuthority(ADMIN)
                     .requestMatchers("/management/health").permitAll()
                     .requestMatchers("/management/health/**").permitAll()

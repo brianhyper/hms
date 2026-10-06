@@ -25,6 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Integration tests for the {@link AuthorityResource} REST controller.
+ *
+ * <p>The role list is read here and never written: a role is seeded with the application and every one of them is a
+ * string the RBAC table or an annotation matches against, so the write routes are refused for every role, Super Admin
+ * included. The generated create and delete tests are kept for the routes they name and assert that refusal instead of
+ * a write.
  */
 @IntegrationTest
 @AutoConfigureMockMvc
@@ -83,40 +88,39 @@ class AuthorityResourceIT {
         }
     }
 
+    /**
+     * A role is what the RBAC table and the method annotations match against, so creating one over HTTP grants
+     * nothing and changes what the application is built around rather than what it records. Refused, and nothing is
+     * written.
+     */
     @Test
     @Transactional
-    void createAuthority() throws Exception {
+    void createAuthorityIsRefused() throws Exception {
         long databaseSizeBeforeCreate = getRepositoryCount();
-        // Create the Authority
-        var returnedAuthority = om.readValue(
-            restAuthorityMockMvc
-                .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(authority)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            Authority.class
-        );
 
-        // Validate the Authority in the database
-        assertIncrementedRepositoryCount(databaseSizeBeforeCreate);
-        assertAuthorityUpdatableFieldsEquals(returnedAuthority, getPersistedAuthority(returnedAuthority));
+        restAuthorityMockMvc
+            .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(authority)))
+            .andExpect(status().isForbidden());
 
-        insertedAuthority = returnedAuthority;
+        // Validate the Authority in the database: nothing was written.
+        assertSameRepositoryCount(databaseSizeBeforeCreate);
     }
 
+    /**
+     * A body that would otherwise be a duplicate is refused before it is read: authorization happens before dispatch,
+     * so what is sent never reaches a validator. Kept from the generated test because that is what it shows.
+     */
     @Test
     @Transactional
-    void createAuthorityWithExistingId() throws Exception {
+    void createAuthorityIsRefusedBeforeTheBodyIsRead() throws Exception {
         // Create the Authority with an existing ID
         insertedAuthority = authorityRepository.saveAndFlush(authority);
 
         long databaseSizeBeforeCreate = getRepositoryCount();
 
-        // An entity with an existing ID cannot be created, so this API call must fail
         restAuthorityMockMvc
             .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(authority)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isForbidden());
 
         // Validate the Authority in the database
         assertSameRepositoryCount(databaseSizeBeforeCreate);
@@ -159,9 +163,13 @@ class AuthorityResourceIT {
         restAuthorityMockMvc.perform(get(ENTITY_API_URL_ID, Long.MAX_VALUE)).andExpect(status().isNotFound());
     }
 
+    /**
+     * Deleting a role is refused for the same reason it cannot be created: the code asks for the role by name, so
+     * removing one over HTTP takes away a door key the application still expects to find.
+     */
     @Test
     @Transactional
-    void deleteAuthority() throws Exception {
+    void deleteAuthorityIsRefused() throws Exception {
         // Initialize the database
         authority.setName(UUID.randomUUID().toString());
         insertedAuthority = authorityRepository.saveAndFlush(authority);
@@ -171,10 +179,10 @@ class AuthorityResourceIT {
         // Delete the authority
         restAuthorityMockMvc
             .perform(delete(ENTITY_API_URL_ID, authority.getName()).accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isForbidden());
 
-        // Validate the database contains one less item
-        assertDecrementedRepositoryCount(databaseSizeBeforeDelete);
+        // Validate the database still holds it
+        assertSameRepositoryCount(databaseSizeBeforeDelete);
     }
 
     protected long getRepositoryCount() {

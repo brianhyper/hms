@@ -72,6 +72,27 @@ class AdminAccessIT {
     }
 
     /**
+     * The role list is read, never written. A role is seeded with the application and every one of them is a
+     * string some row or annotation checks for, so a role created over HTTP grants nothing and a role deleted over
+     * HTTP removes a door key the code still expects — neither is a change to a record, which is why this is the
+     * one place in the administration surface where Super Admin is refused as well.
+     *
+     * <p>The method annotations still name Super Admin; the row above them refuses both methods, and the row is what
+     * the request meets first. Asserted as Super Admin on purpose: a test running as a lesser role would pass against
+     * an open route for the wrong reason.
+     */
+    @Test
+    @WithMockUser(authorities = AuthoritiesConstants.SUPER_ADMIN)
+    void theRoleListIsReadableButNotWritableEvenByASuperAdmin() throws Exception {
+        mockMvc.perform(get("/api/authorities")).andExpect(status().isOk());
+
+        mockMvc
+            .perform(post("/api/authorities").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"ROLE_TEST\"}"))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/authorities/ROLE_TEST")).andExpect(status().isForbidden());
+    }
+
+    /**
      * S3.3. The audit row used to be method-agnostic, so a write route appearing on that resource later would have
      * been admitted by it rather than refused. The trail is written by the application, never through the API.
      */
