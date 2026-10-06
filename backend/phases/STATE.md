@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `bcdc4d4`.
+`test` does not run modernizer or checkstyle. The gate is green at `a4bdb5f` (1038 tests, 0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -28,23 +28,33 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 ## Next, in order
 
 1. **Patient identity rule** — `identityDocumentNumber` required above 19, with an "ID PK" marker so emergency intake
-   stays possible. Wire it in the **registration operation**, never in `PatientRegistrationServiceImpl.normalizedDocument`
-   (the duplicate check calls that too, and requiring a document there refuses a duplicate *check*).
-2. **Ruling 5** — compare references by id in `WorkflowOwnedFields` (plain values or a projection, never an
+   stays possible. Field confirmed for patients only (see the client rulings in `phase3.md`). Wire it in the
+   **registration operation**, never in `PatientRegistrationServiceImpl.normalizedDocument` (the duplicate check calls
+   that too, and requiring a document there refuses a duplicate *check*).
+2. **Break-glass — emergency medicine release before the bill is settled** (named 2026-10-06). Pharmacist or doctor at
+   the point of care, an existing doctor's prescription, a mandatory reason, its own audit event, the bill stays
+   OUTSTANDING, reviewed afterwards by Administration; scope is emergency-triaged visits and admitted patients
+   (confirm with the client). **Checked first:** the outpatient dispense gate exists
+   (`DispenseWorkflowServiceImpl.dispense` refuses `prescriptionNotReadyForDispense` until `READY_FOR_DISPENSE`,
+   reached only after payment), but **inpatients already bypass it** via `initialStatusForInpatient()` — so the missing
+   piece is the audited override, not the release. This is S3.5's first **existing** plug-in point.
+3. **Ruling 5** — compare references by id in `WorkflowOwnedFields` (plain values or a projection, never an
    uninitialised proxy). One service at a time: re-pointing refused, same id accepted.
-3. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
+4. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
-4. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
-5. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
+5. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
+   Now answered (client ruling 1a): the roster is the single source of truth.
+6. **Ruling 2** — S3.5 two-person mechanism for the billing waiver and new-account approval (Administration only,
    requester and approver different people).
 
 ## Waiting on a person
 
-- **Break-glass case must be named** before it is built. Proposed: emergency medicine release before the bill is settled.
-- **Roster source of truth** — gates `inForce` and Phase 4.
-- Confirm `identityDocumentNumber` is the patient field for the age rule.
-- Employment Act: are staff employment records retained after termination? (erasure)
-- Will this ever run on more than one node? (shared cache versus a stamp read that bypasses it)
+- **Verify Article 43(2) of the Constitution** protects emergency treatment, with the client or a lawyer, before the
+  break-glass design leans on it.
+- **Confirm the break-glass scope** with the client: emergency-triaged visits and admitted patients only.
+- **Employment Act retention period** — read section 10(6) and (7). Five years is believed, not confirmed, and the
+  citation is a party's submission, not a ruling. Until then do not build staff erasure: a terminated record stays,
+  HR and Super Admin only (handoff gap).
 
 ## Rules that cost time to learn
 

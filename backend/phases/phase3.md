@@ -49,7 +49,7 @@ Phase 3 is delivered in slices, each implemented, verified with `mvnw verify`, c
 | S3.2 | Authentication: forced password change on first login, one-time expiring reset tokens, failed-login lockout needing manual release, idle session timeout, and deactivation that actually ends existing tokens | S3.1 | **delivered** — forced first-login change (`a8fa154`), one-time reset tokens under a row lock (`78926c3`), the admin initial-password action that makes the first of those reachable (`94d6e9c`), and the revocation, lockout and idle timeout halves recorded below |
 | S3.3 | Audit hardening: audit read rows GET-only, action constants for the account and security events | S3.1 | **delivered** — the read is named as a read and writes are refused outright (`7d75e39`) |
 | S3.4 | `PatientAccessLog`: chart-open access logging, no CRUD, Administration view-only and Super Admin full read | S3.0 | **delivered** (`b3c98c6`) — one entry per chart open, written only for a chart that was actually opened, so a failed or refused request leaves nothing to be mistaken for access. `EDIT` actions are not recorded yet |
-| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | **not started, and blocked twice over.** Who may override is open question 6 below, and the billing gate has no plug-in point yet: it is a status hold on the visit, and the override the phase means belongs to the discharge operation, which does not exist (Phase 4). Single-step would preserve today's behaviour and cannot contradict a later ruling; a second approver would add an approval step without rework |
+| S3.5 | The standard override/emergency-access mechanism (actor, role, mandatory reason, audit entry) that the billing gate plugs into | S3.3 | **not started, and unblocked 2026-10-06.** Who may override is answered by the client's break-glass ruling below (pharmacist or doctor at the point of care; existing prescription plus mandatory reason; single-step, reviewed afterwards). The **billing/discharge** gate still has no plug-in point — it is a status hold on the visit, and the override the phase means belongs to the discharge operation, which does not exist (Phase 4) — **but the dispensing gate is a real, existing caller** (`DispenseWorkflowServiceImpl.dispense`), so build the mechanism against that first |
 | S3.6 | The domain-operation guard applied to every remaining generated CRUD that can still overwrite a status or an amount by hand — including `BillLineItem.amount`, which is editable by FINANCE today | S3.0 | **delivered** — all nine services guarded (`6416e58`, `e5b6992`, `a9c80bd`), plus vitals, which failed the status-or-amount test because every column is a measurement and so is refused outright (`f340471`). Two gaps left inside it, both recorded below: **creating** by hand is still open on all nine, and references are not guarded because the shared guard compares them by identity |
 | S3.7 | Historical integrity where it is still missing: drug name, unit, price **and classification** at the time, on prescription and dispense lines (the money side is already snapshotted by `BillLineItem`) | S3.6 | **delivered** — recorded on both line types and populated by one rule (`ab0c42f`), proven adversarially and end to end (`a0e4aea`), and read back by all three views, which had been showing the renamed catalogue entry instead (`28a03cc`, `a9bf047`). The columns are nullable on purpose for rows written before the snapshot existed |
 | S3.8 | `StaffRecord` (HR data, optional link to a `User`, no login required) and the HR role's own access | S3.1 | **delivered** — it is Phase 4's P4.0, built when Phase 4 started |
@@ -100,6 +100,45 @@ conversation. Each one names what it overrides.
    `sessionsValidFrom`, `lockedAt`) is now read from the row through a projection, by both the sign-in path and the
    session filter, so the cache serves identity and credentials only. The cache remains a performance device; it no
    longer decides anything.
+
+### Client rulings (2026-10-06)
+
+The client's answers to the items that were waiting on a person, plus the break-glass case. Recorded here rather than
+left in a conversation, which is the reason this section exists.
+
+- **Break-glass is named: emergency medicine release before the bill is settled.** It follows the no-detention decision
+  — withholding emergency treatment over money has the same legal and clinical problem. Legally it is believed to rest
+  on **Article 43(2) of the Constitution** protecting emergency treatment, which must be **verified with the client or a
+  lawyer** before the design leans on it.
+  - **Invoked by:** the pharmacist or doctor **at the point of care** — not Super Admin, and not someone who has to be
+    found first.
+  - **Requires:** an existing doctor's prescription and a **mandatory reason**. It releases medicine already
+    prescribed; it does not let anyone prescribe or hand over without one.
+  - **Recorded as:** its **own audit event**, so an override is distinguishable from an ordinary hand-over. The **bill
+    stays `OUTSTANDING`** — a receivable collected later, not a write-off.
+  - **Reviewed afterwards by:** Administration. The second person comes after the act, not before it.
+  - **Scope:** emergency-triaged visits and admitted patients only — **to be confirmed with the client**.
+  - **Checked first (2026-10-06), because without a gate the case does not exist.** The outpatient dispense gate is
+    real: `DispenseWorkflowServiceImpl.dispense` refuses anything not `DISPENSABLE` with `prescriptionNotReadyForDispense`,
+    and a prescription reaches `READY_FOR_DISPENSE` only `afterPayment`. **But the inpatient path already bypasses it**
+    — `placeForInpatient` starts prescriptions at `READY_FOR_DISPENSE` through `initialStatusForInpatient()`,
+    deliberately ("holding the dose behind a payment window is how a charted antibiotic gets missed"). So for admitted
+    patients the release already happens; what is missing there is the audited event, the reason and the review. The
+    genuinely blocked path — and S3.5's first **existing** plug-in point — is the **emergency-triaged outpatient** on
+    the ordinary outpatient status cycle.
+- **Roster (client ruling 1a): one source of truth, the roster.** `Shift` owns who is on duty when, "who is covering
+  this ward now" is a query over it, and existing `WardCover` rows become shifts. It runs as its own gate and gates
+  Phase 4. See decision 4 in `phase4.md` and `blockers-research.md` §3.
+- **`identityDocumentNumber` is the patient field for the age rule — patients only.** Confirmed. The earlier conditions
+  stand, emergency intake keeps an explicit **"ID pending" marker**, and `StaffRecord`'s identity field is separate
+  and unaffected.
+- **Employment Act: records must be kept after termination, so staff erasure is not built** — closing the open half of
+  ruling 6 above. Section 74 requires every employer to keep work records, and courts treat missing records as the
+  employer's failure. The retention **period** is unconfirmed: a court filing points to section 10(6) and (7) and five
+  years is believed, but that is a submission, not a ruling, so read the subsections before promising a number. A
+  **terminated record stays**, visible only to HR and Super Admin, and is recorded as a **handoff gap**.
+- **Single node for v1.0.** Ruling 2's handoff line — revocation freshness depends on a single-node local cache — is
+  accepted for v1.0 rather than fixed. A shared cache or a stamp read is only needed if a second node is ever added.
 
 **A slice counts as delivered only when it is verified with `mvnw verify` and committed.** Anything else is
 planned work, however finished it reads. This column exists because the table was read as a delivery list once
@@ -171,5 +210,5 @@ Each blocks the slice it is listed against, and no earlier one.
 3. **`StaffRecord` fields.** "Name, department, employment details and rostering data" needs to be concrete: which are required, is department a `Department` record or free text, and what does a rostering entry hold? S3.8 cannot start without it.
 4. **Lockout and session numbers** — failed attempts before lockout, how long an account stays locked, and the idle-session timeout. S3.2 cannot start without them.
 5. **How deactivation ends an existing token.** With stateless JWTs and no revocation list, "deactivation ends existing access" needs a mechanism. The cheapest that fits the current design is a `credentialsChangedAt` stamp carried as a claim and checked against a cached lookup; a token registry is the heavier alternative. This is a design decision, not a detail.
-6. **Who may use the override mechanism, and does it need a second approver?** The phase requires an override to identify its actor and role and carry a mandatory reason, but not who is authorized to make one. S3.5 cannot start without it.
+6. **Who may use the override mechanism, and does it need a second approver?** Answered 2026-10-06 by the client's break-glass ruling (below): single-step, the pharmacist or doctor at the point of care, an existing doctor's prescription and a mandatory reason, reviewed afterwards by Administration; no second approver before the act.
 

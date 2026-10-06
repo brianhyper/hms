@@ -59,7 +59,7 @@ roster must not be allowed to contradict.
 | Slice | Delivers | Depends on |
 |---|---|---|
 | P4.0 | `StaffRecord` (this is Phase 3's S3.8): entity, migration, HR-owned access, optional link to a login-less staff member | — |
-| P4.1 | `Shift`: one row per staff member per date, optional ward, shift type, times, `createdBy` | P4.0, and the roster-vs-`WardCover` decision below |
+| P4.1 | `Shift`: one row per staff member per date, optional ward, shift type, times, `createdBy` | P4.0; the roster-vs-`WardCover` decision is now answered (client ruling 1a) |
 | P4.2 | `LeaveRequest` with the entitlement per leave type, HR approving in one step, balance = fixed entitlement − approved days this year | P4.0, and the SICK day counts below |
 | P4.3 | `StaffRecordNote`: plain searchable PERFORMANCE/DISCIPLINARY log | P4.0 |
 | P4.4 | `PayrollEntry`: period, gross, deductions (free text), net, who paid and when, PENDING/PAID | P4.0, Finance-owned |
@@ -92,10 +92,11 @@ by hand, `mvnw verify` before it is committed, and its own RBAC rows — the `/a
    saying what one is, and it decides whether two entries for one month can coexist.
 3. **Shift types** — the values for `shiftType` (DAY/NIGHT/…), and whether a shift must have a ward when the
    staff member has one.
-4. **Roster versus `WardCover`** — the access rule reads `WardCover`, not `Shift`. Do shifts become the single
-   source of truth for who is on duty (with `WardCover` derived or retired), or do they stay separate and the
-   two are allowed to disagree? This is the one that changes an existing security rule, so it is a decision
-   rather than a detail.
+4. **Roster versus `WardCover` — ANSWERED (client ruling 1a, 2026-10-06): one source of truth, the roster.**
+   `Shift` owns who is on duty when; "who is covering this ward now" is a query over it, and existing `WardCover`
+   rows become shifts, so `WardCover` becomes read-only for one release (`blockers-research.md` §3, option 1). It
+   runs as its own gate and gates this phase. What makes it a decision rather than a detail, kept for context: the
+   access rule reads `WardCover`, not `Shift`, so this changes an existing security rule.
 5. **Payroll arithmetic** — the document says net is recorded, not computed (Finance does the tax maths
    outside). Confirming, because it decides whether the system ever owns PAYE/NSSF/PAYE figures.
 

@@ -35,6 +35,11 @@ audit, which is exactly what the phase requires. Two design points make it safe 
 Two-person approval can be added later **without rework** if the reason and the audit entry are the entry point, which
 is the argument for building the mechanism now rather than waiting for discharge.
 
+**Decision (2026-10-06).** The client named the case — emergency medicine release before the bill is settled — with the
+shape recorded under "Client rulings (2026-10-06)" in `phase3.md`. The plug-in point that now exists is the
+**dispensing** gate (`DispenseWorkflowServiceImpl.dispense`), not discharge, so the mechanism's first caller is
+pharmacy rather than the ward.
+
 **Smallest safe first step.** Build the mechanism with no route and no caller: a value type carrying actor, role,
 what is overridden and the mandatory reason, plus an audit entry type. It is testable on its own and cannot change any
 user-facing behaviour while it has no callers. Then wire the discharge operation to it when discharge lands.
@@ -104,6 +109,9 @@ rows become roster shifts, and the existing `inForce` rule moves onto the shift 
 
 **What is needed before any of this: the decision, not the code.** This is the critical open question in the Phase 4
 plan and it changes an existing security rule, which is why it has not been started.
+
+**Decision (2026-10-06): option 1, the roster, as the single source of truth (client ruling 1a).** The decision this
+section was waiting for is made; it now runs as its own gate and gates Phase 4. See decision 4 in `phase4.md`.
 
 ---
 
