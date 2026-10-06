@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `a4c425a` (0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `dc55537` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -26,6 +26,7 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | — | `StaffRecord.nationalId` optional, unique when present; entity, DTO and a file with no number all verified | `2747bff`, `bcdc4d4`, `a4bdb5f` |
 | — | Patient identity: required above 19 at registration, explicit `PENDING` marker, pending worklist, correction completes it | `2763195` |
 | S3.5 | override/emergency-access mechanism: own audit event, mandatory reason, acting role, one-query review; no caller yet | `a4c425a` |
+| Ruling 5 | id-based reference guard in `WorkflowOwnedFields`; applied to `PrescriptionLine` (drug, prescription) | `dc55537` |
 
 ## Next, in order
 
@@ -35,8 +36,9 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
    OUTSTANDING and reviewed afterwards by Administration. **Blocked on** the confirmed scope (emergency-triaged visits
    and admitted patients) and the Article 43(2) check. Note: inpatients already bypass the gate
    (`initialStatusForInpatient()`), so the genuinely blocked path is the **emergency-triaged outpatient**.
-2. **Ruling 5** — compare references by id in `WorkflowOwnedFields` (plain values or a projection, never an
-   uninitialised proxy). One service at a time: re-pointing refused, same id accepted.
+2. **Ruling 5 (continued)** — apply the id-based reference guard to the other services that own a reference, one
+   at a time: `WardCover` (ward, doctor), then the admission/bed guards. `changed` is untouched; the new
+   `WorkflowOwnedFields.referenceChanged` compares plain ids, never a proxy. Re-pointing refused, same id accepted.
 3. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
 4. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
