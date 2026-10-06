@@ -305,6 +305,63 @@ class WardCoverResourceIT {
         assertThat(getPersistedWardCover(wardCover).getCoversFrom()).isEqualTo(DEFAULT_COVERS_FROM);
     }
 
+    /**
+     * The ward and the two people on a cover may not be re-pointed by hand: that would move who was responsible for
+     * the ward, which is the one thing the cover exists to say. Compared by id, because the stored references are
+     * proxies.
+     */
+    @Test
+    @Transactional
+    void putThatRepointsTheWardIsRefused() throws Exception {
+        insertedWardCover = wardCoverRepository.saveAndFlush(wardCover);
+        Long wardBefore = wardCover.getWard().getId();
+
+        Ward anotherWard = WardResourceIT.createEntity(em);
+        // A ward name is unique, and the fixture builder reuses one name, so the second ward needs its own.
+        anotherWard.setName("Repoint Ward " + longCount.incrementAndGet());
+        em.persist(anotherWard);
+        em.flush();
+
+        WardCover repointed = wardCoverRepository.findById(wardCover.getId()).orElseThrow();
+        em.detach(repointed);
+        repointed.setWard(anotherWard);
+        WardCoverDTO wardCoverDTO = wardCoverMapper.toDto(repointed);
+
+        restWardCoverMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, wardCoverDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(wardCoverDTO))
+            )
+            .andExpect(status().isConflict());
+
+        assertThat(wardCoverRepository.findReferenceIds(wardCover.getId()).orElseThrow().getWardId())
+            .as("the cover still names the ward it was assigned to")
+            .isEqualTo(wardBefore);
+    }
+
+    /**
+     * Sending the same references back is not a re-point. This is what comparing ids buys: with the references
+     * compared as entities, a legitimate edit that re-sends the same ward as a different object would be refused.
+     */
+    @Test
+    @Transactional
+    void putThatSendsTheSameReferencesBackIsAccepted() throws Exception {
+        insertedWardCover = wardCoverRepository.saveAndFlush(wardCover);
+
+        WardCover unchanged = wardCoverRepository.findById(wardCover.getId()).orElseThrow();
+        em.detach(unchanged);
+        WardCoverDTO wardCoverDTO = wardCoverMapper.toDto(unchanged);
+
+        restWardCoverMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, wardCoverDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(wardCoverDTO))
+            )
+            .andExpect(status().isOk());
+    }
+
     @Test
     @Transactional
     void putNonExistingWardCover() throws Exception {

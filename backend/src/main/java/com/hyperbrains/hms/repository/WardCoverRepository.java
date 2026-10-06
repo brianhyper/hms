@@ -63,4 +63,24 @@ public interface WardCoverRepository extends JpaRepository<WardCover, Long> {
         "select wardCover from WardCover wardCover left join fetch wardCover.doctor left join fetch wardCover.assignedBy where wardCover.id =:id"
     )
     Optional<WardCover> findOneWithToOneRelationships(@Param("id") Long id);
+
+    /**
+     * The identifiers of the ward and the two people on a cover, as plain values.
+     *
+     * <p>A scalar projection, not the cover's own references: reading an id off a Hibernate-backed reference forces a
+     * load and can throw, which is what stopped an id-based reference guard being added the first time. The service's
+     * reference guard reads both sides from here and from the request, never through a proxy.
+     */
+    interface ReferenceIds {
+        Long getDoctorId();
+
+        Long getWardId();
+
+        Long getAssignedById();
+    }
+
+    @Query(
+        "select cover.doctor.id as doctorId, cover.ward.id as wardId, cover.assignedBy.id as assignedById from WardCover cover where cover.id = :id"
+    )
+    Optional<ReferenceIds> findReferenceIds(@Param("id") Long id);
 }

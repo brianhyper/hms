@@ -7,6 +7,7 @@ import com.hyperbrains.hms.service.WardCoverService;
 import com.hyperbrains.hms.service.dto.WardCoverDTO;
 import com.hyperbrains.hms.service.mapper.WardCoverMapper;
 import com.hyperbrains.hms.service.rules.WorkflowOwnedFields;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -44,10 +45,9 @@ public class WardCoverServiceImpl implements WardCoverService {
      * period by hand moves the answer, and it does it without the record of a cover being started or ended, which is
      * the only thing that ever said who was responsible for the ward.
      *
-     * <p>The people and the ward on the cover are deliberately not in this list. The shared guard compares references
-     * by identity rather than by id — on purpose, since reading an id off a Hibernate-backed reference throws — so a
-     * legitimate edit that sends back the same ward as a different object would be refused. Guarding those needs an
-     * id-based comparison first, and that is a change to the guard rather than to this service.
+     * <p>The people and the ward on the cover are guarded too, but separately and by id rather than by field name: a
+     * reference cannot go in this list, because the stored one is a proxy and this guard compares by identity. See
+     * {@link WorkflowOwnedFields#referenceChanged}.
      */
     private static final String[] WORKFLOW_OWNED_FIELDS = { "coversFrom", "coversTo" };
 
@@ -87,12 +87,23 @@ public class WardCoverServiceImpl implements WardCoverService {
     }
 
     private void refuseHandEdits(WardCoverDTO requested, WardCover stored, boolean nullMeansUnchanged) {
-        List<String> changed = WorkflowOwnedFields.changed(
-            wardCoverMapper.toEntity(requested),
-            stored,
-            nullMeansUnchanged,
-            WORKFLOW_OWNED_FIELDS
+        List<String> changed = new ArrayList<>(
+            WorkflowOwnedFields.changed(wardCoverMapper.toEntity(requested), stored, nullMeansUnchanged, WORKFLOW_OWNED_FIELDS)
         );
+
+        // The ward and the two people are compared by id, not as entities: the stored side is a Hibernate proxy and
+        // reading an id off it forces a load. The request carries the ids as plain values and the stored ids come from
+        // a scalar projection, so neither side touches a proxy and a legitimate edit that re-sends the same ward is not
+        // mistaken for a re-point.
+        WardCoverRepository.ReferenceIds storedIds = wardCoverRepository
+            .findReferenceIds(stored.getId())
+            .orElseThrow(() ->
+                BusinessRuleViolationException.of("wardCoverNotFound", "wardCover", "No ward cover with id " + stored.getId())
+            );
+        addIfChanged(changed, "ward", idOfWard(requested), storedIds.getWardId(), nullMeansUnchanged);
+        addIfChanged(changed, "doctor", idOfDoctor(requested), storedIds.getDoctorId(), nullMeansUnchanged);
+        addIfChanged(changed, "assignedBy", idOfAssignedBy(requested), storedIds.getAssignedById(), nullMeansUnchanged);
+
         if (!changed.isEmpty()) {
             throw BusinessRuleViolationException.of(
                 "wardCoverNotEditedByHand",
@@ -101,6 +112,24 @@ public class WardCoverServiceImpl implements WardCoverService {
                 String.join(", ", changed)
             );
         }
+    }
+
+    private static void addIfChanged(List<String> changed, String field, Long requestedId, Long storedId, boolean nullMeansUnchanged) {
+        if (WorkflowOwnedFields.referenceChanged(requestedId, storedId, nullMeansUnchanged)) {
+            changed.add(field);
+        }
+    }
+
+    private static Long idOfWard(WardCoverDTO requested) {
+        return requested.getWard() == null ? null : requested.getWard().getId();
+    }
+
+    private static Long idOfDoctor(WardCoverDTO requested) {
+        return requested.getDoctor() == null ? null : requested.getDoctor().getId();
+    }
+
+    private static Long idOfAssignedBy(WardCoverDTO requested) {
+        return requested.getAssignedBy() == null ? null : requested.getAssignedBy().getId();
     }
 
     private WardCover requireStored(Long id) {
