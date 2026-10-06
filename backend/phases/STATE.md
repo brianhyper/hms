@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `2763195` (1050 tests, 0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `a4c425a` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -25,16 +25,16 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | S3.4+ | patient delete refused for every role; access log records `EDIT` | `df59020`, `639198c` |
 | — | `StaffRecord.nationalId` optional, unique when present; entity, DTO and a file with no number all verified | `2747bff`, `bcdc4d4`, `a4bdb5f` |
 | — | Patient identity: required above 19 at registration, explicit `PENDING` marker, pending worklist, correction completes it | `2763195` |
+| S3.5 | override/emergency-access mechanism: own audit event, mandatory reason, acting role, one-query review; no caller yet | `a4c425a` |
 
 ## Next, in order
 
-1. **Break-glass — emergency medicine release before the bill is settled** (named 2026-10-06). Pharmacist or doctor at
-   the point of care, an existing doctor's prescription, a mandatory reason, its own audit event, the bill stays
-   OUTSTANDING, reviewed afterwards by Administration; scope is emergency-triaged visits and admitted patients
-   (confirm with the client). **Checked first:** the outpatient dispense gate exists
-   (`DispenseWorkflowServiceImpl.dispense` refuses `prescriptionNotReadyForDispense` until `READY_FOR_DISPENSE`,
-   reached only after payment), but **inpatients already bypass it** via `initialStatusForInpatient()` — so the missing
-   piece is the audited override, not the release. This is S3.5's first **existing** plug-in point.
+1. **Break-glass wiring — release medicine before the bill is settled.** The mechanism is built and committed
+   (`a4c425a`, S3.5). What remains is the caller: the dispensing gate (`DispenseWorkflowServiceImpl.dispense`),
+   invoked by the **pharmacist or doctor at the point of care** for an existing doctor's prescription, leaving the bill
+   OUTSTANDING and reviewed afterwards by Administration. **Blocked on** the confirmed scope (emergency-triaged visits
+   and admitted patients) and the Article 43(2) check. Note: inpatients already bypass the gate
+   (`initialStatusForInpatient()`), so the genuinely blocked path is the **emergency-triaged outpatient**.
 2. **Ruling 5** — compare references by id in `WorkflowOwnedFields` (plain values or a projection, never an
    uninitialised proxy). One service at a time: re-pointing refused, same id accepted.
 3. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
