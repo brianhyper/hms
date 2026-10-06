@@ -1,5 +1,6 @@
 package com.hyperbrains.hms.service.rules;
 
+import com.hyperbrains.hms.domain.enumeration.IdentityDocumentType;
 import java.time.LocalDate;
 import java.time.Period;
 
@@ -43,6 +44,25 @@ public final class PatientIdentity {
     /** Whether a document number was actually supplied, rather than left blank. */
     public static boolean hasDocument(String documentNumber) {
         return documentNumber != null && !documentNumber.isBlank();
+    }
+
+    /** Whether the identity is the explicit pending marker rather than a real document. */
+    public static boolean isPending(IdentityDocumentType type) {
+        return type == IdentityDocumentType.PENDING;
+    }
+
+    /**
+     * Whether the document type and the number contradict each other.
+     *
+     * <p>The pending marker is not a document and must carry no number; every other named type must carry one. A
+     * blank type with a blank number is not a contradiction here — that is silence, and whether silence is refused
+     * depends on the patient's age, which is a separate question.
+     */
+    public static boolean documentTypeAndNumberDisagree(IdentityDocumentType type, String documentNumber) {
+        if (isPending(type)) {
+            return hasDocument(documentNumber);
+        }
+        return type != null && !hasDocument(documentNumber);
     }
 
     /** Whether this patient, as described, is an adult who must have a document and does not have one. */

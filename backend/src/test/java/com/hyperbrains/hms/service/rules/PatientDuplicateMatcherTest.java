@@ -196,6 +196,19 @@ class PatientDuplicateMatcherTest {
         assertThat(PatientDuplicateMatcher.nameSimilarity("john", "")).isZero();
     }
 
+    /**
+     * The pending marker is shared by every patient who has not produced a document, so it must never be treated
+     * as an identity to match on. Two pending patients with different names are two different people.
+     */
+    @Test
+    void twoPendingIdentitiesDoNotMatchEachOther() {
+        var candidate = new PatientDuplicateMatcher.Candidate("Alice Wanjiku", null, null, null, IdentityDocumentType.PENDING, null);
+        var existing = existing(1L, "HMS-2026-0001", "Brian Otieno", null, null, null, IdentityDocumentType.PENDING, null);
+
+        assertThat(PatientDuplicateMatcher.exactIdentityDocumentMatch(candidate, List.of(existing))).isEmpty();
+        assertThat(PatientDuplicateMatcher.possibleDuplicates(candidate, List.of(existing), SETTINGS, TODAY)).isEmpty();
+    }
+
     private static PatientDuplicateMatcher.ExistingPatient existing(
         Long id,
         String hospitalId,

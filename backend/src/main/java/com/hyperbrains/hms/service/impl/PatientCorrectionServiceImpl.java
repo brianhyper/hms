@@ -13,6 +13,7 @@ import com.hyperbrains.hms.service.PatientCorrectionService;
 import com.hyperbrains.hms.service.dto.view.CorrectPatientRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PatientCorrectionResultDTO;
 import com.hyperbrains.hms.service.rules.PatientDuplicateMatcher;
+import com.hyperbrains.hms.service.rules.PatientIdentity;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +63,7 @@ public class PatientCorrectionServiceImpl implements PatientCorrectionService {
 
         requireClinicalAuthorityFor(request);
         requireIdentityDocumentAvailable(patientId, request);
+        refuseThePendingMarkerAsACorrection(request);
 
         // Snapshotted before and after rather than derived from the request: the request says what was
         // asked for, the snapshot says what is now stored, and the trail must describe the second.
@@ -143,6 +145,24 @@ public class PatientCorrectionServiceImpl implements PatientCorrectionService {
         if (!holders.isEmpty()) {
             Patient holder = holders.getFirst();
             throw new ExactPatientMatchException(holder.getId(), holder.getHospitalId());
+        }
+    }
+
+    /**
+     * The pending marker belongs to registration alone.
+     *
+     * <p>It exists so an adult can be registered without a document and be chased afterwards; if correction could
+     * set it, a document already on file could be replaced by the marker and the chase would never happen. What
+     * correction is for is the opposite — recording the real type and number, which replaces the marker. So it is
+     * refused in both directions here.
+     */
+    private static void refuseThePendingMarkerAsACorrection(CorrectPatientRequestDTO request) {
+        if (PatientIdentity.isPending(request.getIdentityDocumentType())) {
+            throw BusinessRuleViolationException.of(
+                "identityPendingNotACorrection",
+                "patient",
+                "An identity is marked pending only at registration. Record the real document type and number here."
+            );
         }
     }
 

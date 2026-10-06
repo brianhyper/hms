@@ -2,6 +2,7 @@ package com.hyperbrains.hms.service.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hyperbrains.hms.domain.enumeration.IdentityDocumentType;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
@@ -63,5 +64,39 @@ class PatientIdentityTest {
         // and the other way round, where there is no date of birth to prefer
         assertThat(PatientIdentity.ageInYears(null, 60, TODAY)).isEqualTo(60);
         assertThat(PatientIdentity.requiresDocumentButHasNone(null, 60, null, TODAY)).isTrue();
+    }
+
+    /** The pending marker is not a document; it is the explicit statement that there is not one yet. */
+    @Test
+    void thePendingMarkerIsRecognisedAndIsNotADocumentType() {
+        assertThat(PatientIdentity.isPending(IdentityDocumentType.PENDING)).isTrue();
+        assertThat(PatientIdentity.isPending(IdentityDocumentType.NATIONAL_ID)).isFalse();
+        assertThat(PatientIdentity.isPending(null)).isFalse();
+    }
+
+    /**
+     * The rule counts a pending identity as having no document. That is deliberate: an adult who is marked
+     * pending is only accepted because the service takes the marker as the alternative, so the rule alone would
+     * still say the document is missing. Silence and the marker must not be the same thing to the rule.
+     */
+    @Test
+    void anAdultWhoIsPendingStillCountsAsHavingNoDocument() {
+        assertThat(PatientIdentity.requiresDocumentButHasNone(LocalDate.of(1990, 1, 1), null, null, TODAY)).isTrue();
+    }
+
+    @Test
+    void aPendingMarkerWithANumberIsAContradiction() {
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.PENDING, "12345678")).isTrue();
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.PENDING, null)).isFalse();
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.PENDING, "   ")).isFalse();
+    }
+
+    @Test
+    void aNamedDocumentTypeWithNoNumberIsAContradiction() {
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.NATIONAL_ID, null)).isTrue();
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.PASSPORT, "  ")).isTrue();
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(IdentityDocumentType.NATIONAL_ID, "12345678")).isFalse();
+        // Silence is not a contradiction; whether it is refused depends on the patient's age.
+        assertThat(PatientIdentity.documentTypeAndNumberDisagree(null, null)).isFalse();
     }
 }

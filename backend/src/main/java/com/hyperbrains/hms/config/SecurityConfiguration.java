@@ -301,6 +301,9 @@ public class SecurityConfiguration {
                     // Emergency intake is the one path a Nurse or Doctor owns, because the patient
                     // may be unconscious and cannot wait for a registration desk.
                     .requestMatchers(HttpMethod.POST, "/api/patient-registration/emergency-intake").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
+                    // The pending-identity worklist: the desk chases the missing documents, Administration
+                    // oversees the backlog. Read only.
+                    .requestMatchers(HttpMethod.GET, "/api/patient-registration/identity-pending").hasAnyAuthority(RECEPTION, ADMIN, SUPER_ADMIN)
 
                     // ---- Visit intake actions ----
                     // Only the desk turns an appointment into a visit; that is the arrival decision.

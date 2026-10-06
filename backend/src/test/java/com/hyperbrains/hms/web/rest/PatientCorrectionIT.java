@@ -17,9 +17,11 @@ import com.hyperbrains.hms.service.HospitalIdService;
 import com.hyperbrains.hms.service.PatientCorrectionService;
 import com.hyperbrains.hms.service.dto.view.CorrectPatientRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PatientCorrectionResultDTO;
+import com.hyperbrains.hms.service.dto.view.PatientRegistrationRequestDTO;
 import com.hyperbrains.hms.service.dto.view.RecordHistoryEntryDTO;
 import com.hyperbrains.hms.service.impl.PatientCorrectionServiceImpl;
 import com.hyperbrains.hms.service.rules.PatientFields;
+import com.hyperbrains.hms.service.workflow.PatientRegistrationService;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -50,6 +52,9 @@ class PatientCorrectionIT {
 
     @Autowired
     private PatientCorrectionService correctionService;
+
+    @Autowired
+    private PatientRegistrationService patientRegistrationService;
 
     @Autowired
     private AuditLogService auditLogService;
@@ -259,6 +264,50 @@ class PatientCorrectionIT {
         request.setFullName("Corrected Holder");
 
         assertThat(correctionService.correct(holder.getId(), request).changedFields()).containsExactly("fullName");
+    }
+
+    // ---------------------------------------------------------------- the pending marker belongs to registration
+
+    /**
+     * The pending marker is a registration-time statement that no document was produced. If a correction could set
+     * it, a document already on file could be replaced by the marker and the chase would never happen.
+     */
+    @Test
+    void thePendingMarkerCannotBeSetByACorrection() {
+        CorrectPatientRequestDTO request = correction("Mark the identity pending");
+        request.setIdentityDocumentType(IdentityDocumentType.PENDING);
+
+        assertThatThrownBy(() -> correctionService.correct(patient.getId(), request))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .satisfies(thrown ->
+                assertThat(((BusinessRuleViolationException) thrown).getErrorKey()).isEqualTo("identityPendingNotACorrection")
+            );
+
+        assertThat(patientRepository.findById(patient.getId()).orElseThrow().getIdentityDocumentType()).isNull();
+    }
+
+    /** Completing the identity with the real document takes the patient off the pending worklist. */
+    @Test
+    void completingAPendingIdentityRemovesThePatientFromTheWorklist() {
+        PatientRegistrationRequestDTO registration = new PatientRegistrationRequestDTO();
+        registration.setFullName("Pending Adult");
+        registration.setSex(Sex.FEMALE);
+        registration.setSexEstimated(false);
+        registration.setDateOfBirth(LocalDate.of(1988, 8, 8));
+        registration.setIdentityDocumentType(IdentityDocumentType.PENDING);
+        Long patientId = patientRegistrationService.register(registration).getPatient().getId();
+        createdPatientIds.add(patientId);
+
+        assertThat(patientRegistrationService.identityPendingWorklist())
+            .anyMatch(entry -> entry.patientId().equals(patientId));
+
+        CorrectPatientRequestDTO completion = correction("National ID produced at the desk");
+        completion.setIdentityDocumentType(IdentityDocumentType.NATIONAL_ID);
+        completion.setIdentityDocumentNumber("55667788");
+        correctionService.correct(patientId, completion);
+
+        assertThat(patientRegistrationService.identityPendingWorklist())
+            .noneMatch(entry -> entry.patientId().equals(patientId));
     }
 
     // ---------------------------------------------------------------- structural guards

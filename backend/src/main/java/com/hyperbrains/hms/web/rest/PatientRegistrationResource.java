@@ -2,14 +2,17 @@ package com.hyperbrains.hms.web.rest;
 
 import com.hyperbrains.hms.service.dto.view.DuplicateCheckResultDTO;
 import com.hyperbrains.hms.service.dto.view.EmergencyIntakeRequestDTO;
+import com.hyperbrains.hms.service.dto.view.IdentityPendingPatientDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationResultDTO;
 import com.hyperbrains.hms.service.workflow.PatientRegistrationService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -70,5 +73,16 @@ public class PatientRegistrationResource {
     public ResponseEntity<PatientRegistrationResultDTO> emergencyIntake(@Valid @RequestBody EmergencyIntakeRequestDTO request) {
         LOG.debug("REST request for emergency patient intake");
         return ResponseEntity.status(HttpStatus.CREATED).body(patientRegistrationService.emergencyIntake(request));
+    }
+
+    /**
+     * {@code GET /patient-registration/identity-pending} : adults whose identity is still marked pending.
+     *
+     * <p>The list the desk works to complete, and the view Administration oversees. Read-only.
+     */
+    @GetMapping("/identity-pending")
+    public List<IdentityPendingPatientDTO> identityPendingWorklist() {
+        LOG.debug("REST request for the pending-identity worklist");
+        return patientRegistrationService.identityPendingWorklist();
     }
 }

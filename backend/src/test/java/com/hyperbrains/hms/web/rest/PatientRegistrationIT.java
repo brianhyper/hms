@@ -13,6 +13,7 @@ import com.hyperbrains.hms.repository.AuditLogRepository;
 import com.hyperbrains.hms.repository.PatientRepository;
 import com.hyperbrains.hms.repository.UserRepository;
 import com.hyperbrains.hms.service.AuditActions;
+import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.ExactPatientMatchException;
 import com.hyperbrains.hms.service.HospitalIdService;
 import com.hyperbrains.hms.service.dto.view.DuplicateCheckResultDTO;
@@ -198,7 +199,9 @@ class PatientRegistrationIT {
 
     @Test
     void surfacesAPossibleDuplicateWhenNameAndDateOfBirthCorroborate() {
-        PatientRegistrationRequestDTO original = request("Hadija Wanjala", null, null);
+        // An adult with no document states that explicitly at the desk (see the identity rule); the point of this
+        // test is the advisory match, not the identity.
+        PatientRegistrationRequestDTO original = request("Hadija Wanjala", IdentityDocumentType.PENDING, null);
         original.setDateOfBirth(LocalDate.of(1988, 4, 12));
         original.setPhone("0700111222");
         PatientRegistrationResultDTO existing = patientRegistrationService.register(original);
@@ -216,6 +219,103 @@ class PatientRegistrationIT {
                 assertThat(duplicate.getPatientId()).isEqualTo(existing.getPatient().getId());
                 assertThat(duplicate.getReasons()).contains("SIMILAR_NAME", "SAME_DATE_OF_BIRTH");
             });
+    }
+
+    /**
+     * An adult must produce a document, or say explicitly that it is pending. Silence is refused because a file
+     * with no identifier cannot be matched to a person when it matters: at admission, in a duplicate review, or
+     * when a result has to be handed to the right person.
+     */
+    @Test
+    void refusesAnAdultWhoHasNeitherADocumentNorAPendingMarker() {
+        PatientRegistrationRequestDTO adult = request("Ibrahim Njoroge", null, null);
+        adult.setDateOfBirth(LocalDate.of(1990, 3, 2));
+
+        assertThatThrownBy(() -> patientRegistrationService.register(adult))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .satisfies(thrown -> assertThat(((BusinessRuleViolationException) thrown).getErrorKey()).isEqualTo("identityDocumentRequired"));
+    }
+
+    /** The explicit marker is the escape hatch: the desk states the identity is pending instead of staying silent. */
+    @Test
+    void acceptsAnAdultWhoseIdentityIsExplicitlyPending() {
+        PatientRegistrationRequestDTO adult = request("Josephine Adhiambo", IdentityDocumentType.PENDING, null);
+        adult.setDateOfBirth(LocalDate.of(1985, 7, 19));
+
+        PatientRegistrationResultDTO result = patientRegistrationService.register(adult);
+        remember(result);
+
+        assertThat(result.getPatient().getIdentityDocumentType()).isEqualTo(IdentityDocumentType.PENDING);
+        assertThat(result.getPatient().getIdentityDocumentNumber()).isNull();
+    }
+
+    /** The rule is about adults. A child is often without a document, and refusing one would refuse those who need registering most. */
+    @Test
+    void acceptsAChildWithNoDocumentAndNoMarker() {
+        PatientRegistrationRequestDTO child = request("Mercy Wairimu", null, null);
+        child.setDateOfBirth(LocalDate.of(2020, 11, 4));
+
+        PatientRegistrationResultDTO result = patientRegistrationService.register(child);
+        remember(result);
+
+        assertThat(result.getPatient().getRegistrationStatus()).isEqualTo(RegistrationStatus.COMPLETE);
+    }
+
+    /** The marker says the number is not known yet; sending one with it is a contradiction, not a shortcut. */
+    @Test
+    void refusesAPendingMarkerThatCarriesANumber() {
+        PatientRegistrationRequestDTO contradictory = request("Kevin Mburu", IdentityDocumentType.PENDING, "12345678");
+        contradictory.setDateOfBirth(LocalDate.of(1992, 1, 30));
+
+        assertThatThrownBy(() -> patientRegistrationService.register(contradictory))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .satisfies(thrown ->
+                assertThat(((BusinessRuleViolationException) thrown).getErrorKey()).isEqualTo("identityDocumentContradiction")
+            );
+    }
+
+    /** A named document type with no number cannot be matched on, so it is refused rather than stored half-known. */
+    @Test
+    void refusesANamedDocumentTypeWithNoNumber() {
+        PatientRegistrationRequestDTO nameless = request("Lydia Chebet", IdentityDocumentType.NATIONAL_ID, null);
+        nameless.setDateOfBirth(LocalDate.of(1991, 5, 6));
+
+        assertThatThrownBy(() -> patientRegistrationService.register(nameless))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .satisfies(thrown ->
+                assertThat(((BusinessRuleViolationException) thrown).getErrorKey()).isEqualTo("identityDocumentContradiction")
+            );
+    }
+
+    /** The worklist names the patient, when they were registered and who did it, so the desk can chase the document. */
+    @Test
+    void listsAdultsWhoseIdentityIsStillPendingWithTheRegistrationDetails() {
+        PatientRegistrationRequestDTO adult = request("Naomi Kendi", IdentityDocumentType.PENDING, null);
+        adult.setDateOfBirth(LocalDate.of(1987, 2, 8));
+        PatientRegistrationResultDTO result = patientRegistrationService.register(adult);
+        remember(result);
+
+        assertThat(patientRegistrationService.identityPendingWorklist())
+            .filteredOn(entry -> entry.patientId().equals(result.getPatient().getId()))
+            .singleElement()
+            .satisfies(entry -> {
+                assertThat(entry.hospitalId()).isEqualTo(result.getPatient().getHospitalId());
+                assertThat(entry.fullName()).isEqualTo("Naomi Kendi");
+                assertThat(entry.registeredAt()).isNotNull();
+                assertThat(entry.registeredBy()).isEqualTo("admin");
+            });
+    }
+
+    /** A child is not on the worklist: the rule does not require a document below the age line, so there is nothing to chase. */
+    @Test
+    void doesNotListAMinorWhoseIdentityIsPending() {
+        PatientRegistrationRequestDTO child = request("Purity Wanjiru", IdentityDocumentType.PENDING, null);
+        child.setDateOfBirth(LocalDate.of(2019, 6, 1));
+        PatientRegistrationResultDTO result = patientRegistrationService.register(child);
+        remember(result);
+
+        assertThat(patientRegistrationService.identityPendingWorklist())
+            .noneMatch(entry -> entry.patientId().equals(result.getPatient().getId()));
     }
 
     private void remember(PatientRegistrationResultDTO result) {

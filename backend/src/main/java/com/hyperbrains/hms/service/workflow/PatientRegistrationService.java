@@ -2,8 +2,10 @@ package com.hyperbrains.hms.service.workflow;
 
 import com.hyperbrains.hms.service.dto.view.DuplicateCheckResultDTO;
 import com.hyperbrains.hms.service.dto.view.EmergencyIntakeRequestDTO;
+import com.hyperbrains.hms.service.dto.view.IdentityPendingPatientDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationResultDTO;
+import java.util.List;
 
 /**
  * Patient registration: the first point at which the system decides whether two people are the
@@ -40,4 +42,12 @@ public interface PatientRegistrationService {
      * Create an unidentified-patient record so treatment can begin immediately.
      */
     PatientRegistrationResultDTO emergencyIntake(EmergencyIntakeRequestDTO request);
+
+    /**
+     * Adults whose identity is still marked pending: the list the desk chases and Administration oversees.
+     *
+     * <p>Minors are deliberately absent. The rule does not require them to hold a document, so a pending marker on
+     * a child is not a gap to close.
+     */
+    List<IdentityPendingPatientDTO> identityPendingWorklist();
 }

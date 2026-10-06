@@ -1,21 +1,27 @@
 package com.hyperbrains.hms.service.workflow.impl;
 
 import com.hyperbrains.hms.config.HmsProperties;
+import com.hyperbrains.hms.domain.AuditLog;
 import com.hyperbrains.hms.domain.Patient;
+import com.hyperbrains.hms.domain.enumeration.IdentityDocumentType;
 import com.hyperbrains.hms.domain.enumeration.RegistrationStatus;
+import com.hyperbrains.hms.repository.AuditLogRepository;
 import com.hyperbrains.hms.repository.PatientRepository;
 import com.hyperbrains.hms.service.AuditActions;
 import com.hyperbrains.hms.service.AuditLogService;
+import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.ExactPatientMatchException;
 import com.hyperbrains.hms.service.HospitalIdService;
 import com.hyperbrains.hms.service.dto.view.DuplicateCheckResultDTO;
 import com.hyperbrains.hms.service.dto.view.EmergencyIntakeRequestDTO;
+import com.hyperbrains.hms.service.dto.view.IdentityPendingPatientDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PatientRegistrationResultDTO;
 import com.hyperbrains.hms.service.dto.view.PatientSummaryDTO;
 import com.hyperbrains.hms.service.dto.view.PossibleDuplicateDTO;
 import com.hyperbrains.hms.service.mapper.PatientMapper;
 import com.hyperbrains.hms.service.rules.PatientDuplicateMatcher;
+import com.hyperbrains.hms.service.rules.PatientIdentity;
 import com.hyperbrains.hms.service.workflow.PatientRegistrationService;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -51,6 +57,8 @@ public class PatientRegistrationServiceImpl implements PatientRegistrationServic
 
     private final AuditLogService auditLogService;
 
+    private final AuditLogRepository auditLogRepository;
+
     private final HmsProperties properties;
 
     public PatientRegistrationServiceImpl(
@@ -58,12 +66,14 @@ public class PatientRegistrationServiceImpl implements PatientRegistrationServic
         PatientMapper patientMapper,
         HospitalIdService hospitalIdService,
         AuditLogService auditLogService,
+        AuditLogRepository auditLogRepository,
         HmsProperties properties
     ) {
         this.patientRepository = patientRepository;
         this.patientMapper = patientMapper;
         this.hospitalIdService = hospitalIdService;
         this.auditLogService = auditLogService;
+        this.auditLogRepository = auditLogRepository;
         this.properties = properties;
     }
 
@@ -75,6 +85,8 @@ public class PatientRegistrationServiceImpl implements PatientRegistrationServic
 
     @Override
     public PatientRegistrationResultDTO register(PatientRegistrationRequestDTO request) {
+        requireARecordableIdentity(request);
+
         List<Patient> existing = candidatesFor(request);
         DuplicateCheckResultDTO check = evaluate(toCandidate(request), existing);
 
@@ -130,6 +142,89 @@ public class PatientRegistrationServiceImpl implements PatientRegistrationServic
         // No duplicate check: this path exists precisely because there is no identity to match on,
         // and blocking it would delay treatment.
         return result(patient, List.of());
+    }
+
+    /**
+     * The worklist of adults whose identity is still pending.
+     *
+     * <p>Only adults: the rule does not require a document below the age line, so a pending marker on a child is
+     * not a gap to close. Who registered each patient, and when, come from the registration audit entry rather
+     * than the patient row, because that is where the actor is recorded.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<IdentityPendingPatientDTO> identityPendingWorklist() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        List<Patient> pending = patientRepository
+            .findByIdentityDocumentType(IdentityDocumentType.PENDING)
+            .stream()
+            .filter(patient ->
+                PatientIdentity.requiresDocument(
+                    PatientIdentity.ageInYears(patient.getDateOfBirth(), patient.getEstimatedAge(), today)
+                )
+            )
+            .toList();
+
+        if (pending.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, AuditLog> registrations = auditLogRepository
+            .findForEntitiesByAction(
+                AuditActions.PATIENT_REGISTERED,
+                "Patient",
+                pending.stream().map(patient -> patient.getId().toString()).toList()
+            )
+            .stream()
+            .collect(Collectors.toMap(AuditLog::getEntityId, entry -> entry, (first, ignored) -> first));
+
+        return pending
+            .stream()
+            .map(patient -> IdentityPendingPatientDTO.from(patient, registrations.get(patient.getId().toString())))
+            .toList();
+    }
+
+    /**
+     * The identity rule, applied at the desk rather than in the duplicate check.
+     *
+     * <p>An adult must have a document on file, or say explicitly that it is pending. Silence is refused because a
+     * file with no identifier cannot be matched to a person when it matters, and because a blank field cannot be
+     * told apart from an oversight. A minor is not held to this: a document is often simply not held, so requiring
+     * one would refuse the children who most need registering.
+     *
+     * <p>Deliberately not in {@link #normalizedDocument}: the duplicate check shares that, and the desk checks for a
+     * duplicate before any document has been recorded, so requiring one there would refuse a duplicate <em>check</em>.
+     * The emergency-intake path is a separate operation and is not affected.
+     */
+    private void requireARecordableIdentity(PatientRegistrationRequestDTO request) {
+        IdentityDocumentType type = request.getIdentityDocumentType();
+        String number = request.getIdentityDocumentNumber();
+
+        if (PatientIdentity.documentTypeAndNumberDisagree(type, number)) {
+            throw BusinessRuleViolationException.of(
+                "identityDocumentContradiction",
+                "patient",
+                PatientIdentity.isPending(type)
+                    ? "An identity marked pending cannot also carry a number: leave the number blank and record it when it arrives."
+                    : "A " + type + " was named but no number was given. Record the number, or mark the identity pending."
+            );
+        }
+
+        boolean needsADocument = PatientIdentity.requiresDocumentButHasNone(
+            request.getDateOfBirth(),
+            request.getEstimatedAge(),
+            number,
+            LocalDate.now(ZoneOffset.UTC)
+        );
+        if (needsADocument && !PatientIdentity.isPending(type)) {
+            throw BusinessRuleViolationException.of(
+                "identityDocumentRequired",
+                "patient",
+                "A patient over " +
+                PatientIdentity.DOCUMENT_REQUIRED_ABOVE_AGE +
+                " must have an identity document, or be marked pending if the number is not available yet."
+            );
+        }
     }
 
     private PatientRegistrationResultDTO result(Patient patient, List<PossibleDuplicateDTO> duplicates) {

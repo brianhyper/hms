@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.AuditLog;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -55,5 +56,21 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByEntityNameAndEntityIdOrderByIdAsc(
         @Param("entityName") String entityName,
         @Param("entityId") String entityId
+    );
+
+    /**
+     * The entries of one action for a set of records, with the actor joined in.
+     *
+     * <p>Used by the pending-identity worklist, which must say who registered each patient and when. The actor is
+     * fetched eagerly because naming who did it is the point of reading a trail.
+     */
+    @Query(
+        "select a from AuditLog a left join fetch a.actor " +
+        "where a.action = :action and a.entityName = :entityName and a.entityId in :entityIds"
+    )
+    List<AuditLog> findForEntitiesByAction(
+        @Param("action") String action,
+        @Param("entityName") String entityName,
+        @Param("entityIds") Collection<String> entityIds
     );
 }

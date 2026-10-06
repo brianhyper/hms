@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.Patient;
+import com.hyperbrains.hms.domain.enumeration.IdentityDocumentType;
 import com.hyperbrains.hms.domain.enumeration.RegistrationStatus;
 import java.time.LocalDate;
 import java.util.List;
@@ -16,6 +17,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
     Optional<Patient> findOneByHospitalId(String hospitalId);
+
+    /** Patients whose identity is explicitly marked pending, for the worklist the desk chases. */
+    List<Patient> findByIdentityDocumentType(IdentityDocumentType type);
 
     /**
      * Exact identity-document match, using the same normalisation as the functional index
