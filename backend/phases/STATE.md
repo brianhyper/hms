@@ -40,6 +40,7 @@ are delivered. Phase 4 has P4.0 (`StaffRecord`) delivered. **Two gates stand in 
 | — | route catalogue and role-by-route matrix committed under `docs/` | `63e6372` |
 | — | **Phase 3 closed** — all ten slices S3.0-S3.9 delivered; its residue reclassified as a backlog that holds nothing | `8ac7b9e` |
 | P4.1 | roster gate started: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, one person one shift a day | `9cf294a` |
+| P4.1 | roster gate step 2: `Shift` CRUD and its access rows — read HR/Admin, every write Super Admin, no delete route, author stamped from the caller | `470a3d6` |
 
 ## The roster gate (P4.1) — in progress
 
@@ -49,8 +50,8 @@ step by step so a later session knows where this stopped.
 | Step | What | State |
 |---|---|---|
 | 1 | The model: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, and one person one shift a day | **done** (`9cf294a`) — `ShiftModelIT` proves the day, the person, the ward, the writer, the ward being optional, and the unique rule |
-| 2 | CRUD: DTO, mapper, service, resource, and the RBAC rows (`CatchAllCoverageIT` fails the build until the write rows exist) | not started |
-| 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | not started |
+| 2 | CRUD: DTO, mapper, service, resource, and the RBAC rows (`CatchAllCoverageIT` fails the build until the write rows exist) | **done** (`470a3d6`) — the person goes out as an id only, reads stop at HR/Admin, writes are Super Admin, there is no `DELETE`, and the author is stamped from the caller |
+| 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | **next** — and this is the step that builds the ward-facing view that names the person and carries nothing else of theirs |
 | 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | not started |
 | 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | not started |
 | 6 | `WardCover` and `WardCoverage` retired once nothing reads them | not started |
