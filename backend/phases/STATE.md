@@ -42,6 +42,7 @@ are delivered. Phase 4 has P4.0 (`StaffRecord`) delivered. **Two gates stand in 
 | P4.1 | roster gate started: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, one person one shift a day | `9cf294a` |
 | P4.1 | roster gate step 2: `Shift` CRUD and its access rows — read HR/Admin, every write Super Admin, no delete route, author stamped from the caller | `470a3d6` |
 | P4.1 | roster gate step 3: `ShiftDuty` rule, the ward-facing `ShiftViewDTO`, and `GET /api/roster/**` | `24bff91` |
+| P2.9 | discharge built: two sign-off actions, the billing gate, bed to `CLEANING`, visit closed, running orders surfaced and logged | `91b203d`, `d62ac6d` |
 
 ## The roster gate (P4.1) — in progress
 
@@ -66,23 +67,23 @@ step by step so a later session knows where this stopped.
    ruling makes it a **release activity, not a coding one**: a dry-run report must list `BLOCKED` rows, HR has to
    resolve each of them (an explicit end date, or a `StaffRecord` that does not exist yet), and the release does not
    proceed until `BLOCKED` is empty. Nobody can do that inside a session, so the second gate below is taken first.
-2. **Discharge, with outcomes (Phase 2 slice 9) — in progress, and the second gate in front of Phase 4.**
-   **Already spec'd, so this waits on nobody.** Phase 2 §7 gives: **two separate sign-off actions**, one from a doctor
+2. **Discharge (Phase 2 slice 9) — done, except the outcomes.**
+   **Already spec'd, so this waited on nobody.** Phase 2 §7 gave: **two separate sign-off actions**, one from a doctor
    and one from a nurse, each recording its own actor and its own audit entry, the stay reaching `DISCHARGED` only when
    both are in; the two must be **different people** ("a decision to record, not an accident to allow"); a **billing
    gate** — the bill `PAID` or covered by an `ACTIVE` payment plan; outstanding orders **surfaced and
    acknowledged-and-proceeded, logged, not a hard block**; and on completion `Admission → DISCHARGED`, `Bed →
    CLEANING`, `dischargeNote` captured, `Visit → CLOSED` through `onDischarged(visitId)`.
-   **Built:** `DischargeRequirements` and its unit tests — both sign-offs from two different people, and the money gate
-   including the case that keeps this usable, a stay with **no bill at all** owes nothing.
-   **Next:** the two actions (their RBAC rows must sit ABOVE the `/api/admissions/**` Super-Admin row, which would
-   otherwise swallow them), the running-order surfacing, the bed to `CLEANING`, the audit entries, and the integration
-   tests: the money gate refuses, one signature is not a discharge, one person cannot sign twice, the bed ends
-   `CLEANING`, and the visit ends `CLOSED`.
+   **Built:** `DischargeRequirements` and its unit tests (`91b203d`), then the actions themselves (`d62ac6d`):
+   `POST /api/admissions/*/discharge/doctor` and `.../nurse`, the money gate, the two signatures from two different
+   people, the running orders surfaced **with their ids** and logged when acknowledged, the bed to `CLEANING`, and the
+   visit closed through `onDischarged` rather than through the payment path. Nine integration tests, including one that
+   makes the same-person refusal reachable rather than theoretical, and one that pins the two RBAC rows a nurse and a
+   pharmacist must not get through.
    **Still open, and deliberately not invented:** **death in hospital and discharge against medical advice**. Phase 2
    §7 says neither is a discharge, neither should need two signatures, and both release the bed and end the encounter —
    and §11 question 4 asks whether they get their own outcome/status and who signs them off. That is question 2 on the
-   client page, and it is the whole of what "with outcomes" in this item refers to.
+   client page, and it is the whole of what "with outcomes" in this item's title refers to.
    There is no discharge route in the application today: `VisitStatusService.onDischarged` is called by a test and by
    nothing else, and the columns it writes exist with nothing that reaches them. It is also what unblocks S3.5's real
    plug-in point.
