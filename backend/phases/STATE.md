@@ -83,9 +83,9 @@ step by step so a later session knows where this stopped.
    §7 says neither is a discharge, neither should need two signatures, and both release the bed and end the encounter —
    and §11 question 4 asks whether they get their own outcome/status and who signs them off. That is question 2 on the
    client page, and it is the whole of what "with outcomes" in this item refers to.
-2. **Discharge, with outcomes (Phase 2 slice 9) — the second gate.** There is no discharge route in the application
-   today: `VisitStatusService.onDischarged` is called by a test and by nothing else, and the columns it writes exist
-   with nothing that reaches them. It is also what unblocks S3.5's real plug-in point.
+   There is no discharge route in the application today: `VisitStatusService.onDischarged` is called by a test and by
+   nothing else, and the columns it writes exist with nothing that reaches them. It is also what unblocks S3.5's real
+   plug-in point.
 3. **Stay billing (Phase 2 slice 6)** — daily bed-day charges with timezone, idempotency and catch-up, the doctor's
    round, and an `ADHOC` line from `AdHocCharge` so a charge Finance records reaches the bill. Build it with the rates
    as catalogue data: the client's real rates change rows, not code.
