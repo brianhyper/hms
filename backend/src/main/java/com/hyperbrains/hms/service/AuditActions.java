@@ -82,6 +82,14 @@ public final class AuditActions {
     /** A prescriber stopped a course that was still running. */
     public static final String ORDER_COMPLETED = "ORDER_COMPLETED";
 
+    // ---- Discharge (Phase 2 §7) ----
+
+    /** One half of a discharge. Recorded per signer, because which two people signed is the whole point. */
+    public static final String DISCHARGE_SIGNED_OFF = "DISCHARGE_SIGNED_OFF";
+
+    /** A discharge that proceeded with orders still running, which §7 asks to be logged rather than blocked. */
+    public static final String DISCHARGE_OUTSTANDING_ORDERS_ACKNOWLEDGED = "DISCHARGE_OUTSTANDING_ORDERS_ACKNOWLEDGED";
+
     // -----------------------------------------------------------------------------
     // Accounts and roles (phase 3)
     // -----------------------------------------------------------------------------

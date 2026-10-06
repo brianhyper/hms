@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.repository;
 
 import com.hyperbrains.hms.domain.DoctorOrder;
+import com.hyperbrains.hms.domain.enumeration.DoctorOrderStatus;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,14 @@ public interface DoctorOrderRepository extends JpaRepository<DoctorOrder, Long> 
     List<DoctorOrder> findSheet(@Param("admissionId") Long admissionId);
     @Query("select doctorOrder from DoctorOrder doctorOrder where doctorOrder.orderedBy.login = ?#{authentication.name}")
     List<DoctorOrder> findByOrderedByIsCurrentUser();
+
+    /**
+     * This stay's orders in one status — used at discharge, where the running ones have to be surfaced.
+     *
+     * <p>Not {@code findSheet}, which is the medication sheet the ward reads: that answers "what is this patient
+     * on", and the discharge question is "what is still running", which is a different shape of answer.
+     */
+    List<DoctorOrder> findByAdmissionIdAndStatus(Long admissionId, DoctorOrderStatus status);
 
     @Query("select doctorOrder from DoctorOrder doctorOrder where doctorOrder.cancelledBy.login = ?#{authentication.name}")
     List<DoctorOrder> findByCancelledByIsCurrentUser();

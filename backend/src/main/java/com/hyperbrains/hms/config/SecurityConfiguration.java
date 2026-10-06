@@ -494,6 +494,13 @@ public class SecurityConfiguration {
                     // Moving a patient between beds, which is the same job as putting them in one and uses the
                     // same role set. §4 of the specification asks for the two to agree rather than drift.
                     .requestMatchers(HttpMethod.POST, "/api/admissions/*/transfers").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
+                    // ---- Discharge (Phase 2 slice 9) ----
+                    // Two routes and not one, because a single endpoint taking two names would let one caller claim
+                    // both signatures, which is the whole reason two are asked for. They are written here, ABOVE the
+                    // method-agnostic /api/admissions/** Super-Admin row lower down, or that row would swallow them
+                    // and the discharge would be Super-Admin-only by accident.
+                    .requestMatchers(HttpMethod.POST, "/api/admissions/*/discharge/doctor").hasAnyAuthority(DOCTOR, ADMIN, SUPER_ADMIN)
+                    .requestMatchers(HttpMethod.POST, "/api/admissions/*/discharge/nurse").hasAnyAuthority(NURSE, ADMIN, SUPER_ADMIN)
                     // The location history is append-only: it says what happened, so it may be read by the ward
                     // and rewritten by nobody. A move that did not happen cannot be edited into one that did.
                     .requestMatchers(HttpMethod.GET, "/api/admission-transfers", "/api/admission-transfers/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
