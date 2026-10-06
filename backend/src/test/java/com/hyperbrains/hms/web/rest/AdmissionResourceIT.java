@@ -359,6 +359,58 @@ class AdmissionResourceIT {
         assertThat(admissionRepository.findById(admission.getId()).orElseThrow().getStatus()).isEqualTo(DEFAULT_STATUS);
     }
 
+    /**
+     * The visit, the bed and the doctors on a stay are compared by id, so a hand-written update cannot move who is
+     * responsible for the patient even though the value fields are caught too. This is the half the value-field test
+     * does not reach.
+     */
+    @Test
+    @Transactional
+    void putThatRepointsThePrimaryDoctorIsRefused() throws Exception {
+        insertedAdmission = admissionRepository.saveAndFlush(admission);
+        Long doctorBefore = admission.getPrimaryDoctor().getId();
+
+        User anotherDoctor = UserResourceIT.createEntity();
+        em.persist(anotherDoctor);
+        em.flush();
+
+        Admission repointed = admissionRepository.findById(admission.getId()).orElseThrow();
+        em.detach(repointed);
+        repointed.setPrimaryDoctor(anotherDoctor);
+        AdmissionDTO admissionDTO = admissionMapper.toDto(repointed);
+
+        restAdmissionMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, admissionDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(admissionDTO))
+            )
+            .andExpect(status().isConflict());
+
+        assertThat(admissionRepository.findById(admission.getId()).orElseThrow().getPrimaryDoctor().getId())
+            .as("the stay still names the doctor responsible for it")
+            .isEqualTo(doctorBefore);
+    }
+
+    /** Sending the same references back is not a re-point: an id comparison accepts it, an identity one would not. */
+    @Test
+    @Transactional
+    void putThatSendsTheSameReferencesBackIsAccepted() throws Exception {
+        insertedAdmission = admissionRepository.saveAndFlush(admission);
+
+        Admission unchanged = admissionRepository.findById(admission.getId()).orElseThrow();
+        em.detach(unchanged);
+        AdmissionDTO admissionDTO = admissionMapper.toDto(unchanged);
+
+        restAdmissionMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, admissionDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(admissionDTO))
+            )
+            .andExpect(status().isOk());
+    }
+
     @Test
     @Transactional
     void putNonExistingAdmission() throws Exception {

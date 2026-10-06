@@ -294,6 +294,51 @@ class BedResourceIT {
         assertThat(reloaded.getDailyRateOverride()).isEqualByComparingTo(DEFAULT_DAILY_RATE_OVERRIDE);
     }
 
+    /**
+     * The ward and the bed type are compared by id, so a hand-written update cannot move a bed into another ward
+     * even though the status and the rate are caught too. This is the half the value-field test does not reach.
+     */
+    @Test
+    @Transactional
+    void putThatRepointsTheWardIsRefused() throws Exception {
+        insertedBed = bedRepository.saveAndFlush(bed);
+        Long wardBefore = bed.getWard().getId();
+
+        Ward anotherWard = WardResourceIT.createEntity(em);
+        // A ward name is unique, and the fixture builder reuses one name, so the second ward needs its own.
+        anotherWard.setName("Repoint Bed Ward " + longCount.incrementAndGet());
+        em.persist(anotherWard);
+        em.flush();
+
+        Bed repointed = bedRepository.findById(bed.getId()).orElseThrow();
+        em.detach(repointed);
+        repointed.setWard(anotherWard);
+        BedDTO bedDTO = bedMapper.toDto(repointed);
+
+        restBedMockMvc
+            .perform(put(ENTITY_API_URL_ID, bedDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(bedDTO)))
+            .andExpect(status().isConflict());
+
+        assertThat(bedRepository.findById(bed.getId()).orElseThrow().getWard().getId())
+            .as("the bed is still in the ward it was put in")
+            .isEqualTo(wardBefore);
+    }
+
+    /** Sending the same references back is not a re-point: an id comparison accepts it, an identity one would not. */
+    @Test
+    @Transactional
+    void putThatSendsTheSameReferencesBackIsAccepted() throws Exception {
+        insertedBed = bedRepository.saveAndFlush(bed);
+
+        Bed unchanged = bedRepository.findById(bed.getId()).orElseThrow();
+        em.detach(unchanged);
+        BedDTO bedDTO = bedMapper.toDto(unchanged);
+
+        restBedMockMvc
+            .perform(put(ENTITY_API_URL_ID, bedDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(bedDTO)))
+            .andExpect(status().isOk());
+    }
+
     @Test
     @Transactional
     void putNonExistingBed() throws Exception {
