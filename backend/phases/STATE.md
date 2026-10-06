@@ -55,8 +55,6 @@ step by step so a later session knows where this stopped.
 | 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | **done** (`24bff91`) — `ShiftDuty` owns the window, a night shift belongs to the day it started, and the ward-facing view names the person with no field for anything else of theirs |
 | 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | **ruled and unblocked (`phase4.md`, the conversion ruling). Ships in the same release as step 5** |
 | 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | **ruled, not built.** A **dry run first**: a report lists every `ward_cover` row `CONVERTIBLE` or `BLOCKED` with its reason, and step 4 deploys only when `BLOCKED` is empty. Open-ended cover and a doctor with no staff record are `BLOCKED` for HR to resolve — nothing is invented. Arbitrary instants round **outward**, multi-day covers become one shift per day, midnight splits. The migration **aborts loudly** if a cover in force has no shift, and counts are compared before and after |
-| 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | not started |
-| 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | not started |
 | 6 | `WardCover` and `WardCoverage` retired once nothing reads them | not started |
 
 ## Next, in order
@@ -69,6 +67,22 @@ step by step so a later session knows where this stopped.
    resolve each of them (an explicit end date, or a `StaffRecord` that does not exist yet), and the release does not
    proceed until `BLOCKED` is empty. Nobody can do that inside a session, so the second gate below is taken first.
 2. **Discharge, with outcomes (Phase 2 slice 9) — in progress, and the second gate in front of Phase 4.**
+   **Already spec'd, so this waits on nobody.** Phase 2 §7 gives: **two separate sign-off actions**, one from a doctor
+   and one from a nurse, each recording its own actor and its own audit entry, the stay reaching `DISCHARGED` only when
+   both are in; the two must be **different people** ("a decision to record, not an accident to allow"); a **billing
+   gate** — the bill `PAID` or covered by an `ACTIVE` payment plan; outstanding orders **surfaced and
+   acknowledged-and-proceeded, logged, not a hard block**; and on completion `Admission → DISCHARGED`, `Bed →
+   CLEANING`, `dischargeNote` captured, `Visit → CLOSED` through `onDischarged(visitId)`.
+   **Built:** `DischargeRequirements` and its unit tests — both sign-offs from two different people, and the money gate
+   including the case that keeps this usable, a stay with **no bill at all** owes nothing.
+   **Next:** the two actions (their RBAC rows must sit ABOVE the `/api/admissions/**` Super-Admin row, which would
+   otherwise swallow them), the running-order surfacing, the bed to `CLEANING`, the audit entries, and the integration
+   tests: the money gate refuses, one signature is not a discharge, one person cannot sign twice, the bed ends
+   `CLEANING`, and the visit ends `CLOSED`.
+   **Still open, and deliberately not invented:** **death in hospital and discharge against medical advice**. Phase 2
+   §7 says neither is a discharge, neither should need two signatures, and both release the bed and end the encounter —
+   and §11 question 4 asks whether they get their own outcome/status and who signs them off. That is question 2 on the
+   client page, and it is the whole of what "with outcomes" in this item refers to.
 2. **Discharge, with outcomes (Phase 2 slice 9) — the second gate.** There is no discharge route in the application
    today: `VisitStatusService.onDischarged` is called by a test and by nothing else, and the columns it writes exist
    with nothing that reaches them. It is also what unblocks S3.5's real plug-in point.
