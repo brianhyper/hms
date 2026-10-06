@@ -450,6 +450,21 @@ public class SecurityConfiguration {
                     .requestMatchers(HttpMethod.GET, "/api/staff-records", "/api/staff-records/**").hasAnyAuthority(HR, SUPER_ADMIN)
                     .requestMatchers("/api/staff-records", "/api/staff-records/**").hasAnyAuthority(HR, SUPER_ADMIN)
 
+                    // ---- The roster (Phase 4's P4.1) ----
+                    // A shift row names the person by staff record id, and reading a staff record is HR's, so the
+                    // roster's own reads are HR's and Administration's: whoever runs the rota runs it against the
+                    // staff file. This is deliberately not extended to the ward. What a ward needs is "who is on
+                    // duty", which is a separate, purpose-built read that names the person and carries nothing else
+                    // of theirs; widening this row to the ward would hand it identity numbers and contact details to
+                    // answer a question that does not need them.
+                    .requestMatchers(HttpMethod.GET, "/api/shifts", "/api/shifts/**").hasAnyAuthority(HR, ADMIN, SUPER_ADMIN)
+                    // Every write Super Admin, like every other raw table in this system. The roster is about to
+                    // become the source of truth for an access rule saying who may see a ward's patients, and a
+                    // hand-written update must not be able to move who was on duty. The roster's own operations are
+                    // the way in once they exist, and there is no DELETE route at all: removing a day from the
+                    // roster is editing what happened.
+                    .requestMatchers("/api/shifts", "/api/shifts/**").hasAnyAuthority(SUPER_ADMIN)
+
                     .requestMatchers(HttpMethod.GET, "/api/beds", "/api/beds/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
                     // Housekeeping does not exist as a Phase 1 role, so closing the cleaning loop after a patient
                     // leaves is a nurse's or an administrator's job. Listed before the bed write catch-all below,
