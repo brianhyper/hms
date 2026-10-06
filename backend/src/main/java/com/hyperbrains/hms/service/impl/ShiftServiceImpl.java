@@ -1,5 +1,6 @@
 package com.hyperbrains.hms.service.impl;
 
+import com.hyperbrains.hms.config.HmsProperties;
 import com.hyperbrains.hms.domain.Shift;
 import com.hyperbrains.hms.domain.User;
 import com.hyperbrains.hms.repository.ShiftRepository;
@@ -8,7 +9,11 @@ import com.hyperbrains.hms.security.SecurityUtils;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.ShiftService;
 import com.hyperbrains.hms.service.dto.ShiftDTO;
+import com.hyperbrains.hms.service.dto.view.ShiftViewDTO;
 import com.hyperbrains.hms.service.mapper.ShiftMapper;
+import com.hyperbrains.hms.service.rules.ShiftDuty;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -41,16 +46,25 @@ public class ShiftServiceImpl implements ShiftService {
 
     private final UserRepository userRepository;
 
-    public ShiftServiceImpl(ShiftRepository shiftRepository, ShiftMapper shiftMapper, UserRepository userRepository) {
+    private final HmsProperties properties;
+
+    public ShiftServiceImpl(
+        ShiftRepository shiftRepository,
+        ShiftMapper shiftMapper,
+        UserRepository userRepository,
+        HmsProperties properties
+    ) {
         this.shiftRepository = shiftRepository;
         this.shiftMapper = shiftMapper;
         this.userRepository = userRepository;
+        this.properties = properties;
     }
 
     @Override
     public ShiftDTO save(ShiftDTO shiftDTO) {
         LOG.debug("Request to save Shift : {}", shiftDTO);
         Shift shift = shiftMapper.toEntity(shiftDTO);
+        refuseAShiftThatIsNotAWindow(shift);
         shift.setCreatedBy(currentUser());
         shift = shiftRepository.save(shift);
         return shiftMapper.toDto(shift);
@@ -61,6 +75,7 @@ public class ShiftServiceImpl implements ShiftService {
         LOG.debug("Request to update Shift : {}", shiftDTO);
         Shift existing = requireStored(shiftDTO.getId());
         Shift shift = shiftMapper.toEntity(shiftDTO);
+        refuseAShiftThatIsNotAWindow(shift);
         // An edit rewrites the shift, not its author. Who wrote the roster is part of what the row records.
         shift.setCreatedBy(existing.getCreatedBy());
         shift = shiftRepository.save(shift);
@@ -79,6 +94,9 @@ public class ShiftServiceImpl implements ShiftService {
                 User author = existingShift.getCreatedBy();
                 shiftMapper.partialUpdate(existingShift, shiftDTO);
                 existingShift.setCreatedBy(author);
+                // Checked on the merged row rather than on the request: a patch that sends one of the two times is
+                // enough to make the window impossible, and what is stored is what is read.
+                refuseAShiftThatIsNotAWindow(existingShift);
 
                 return existingShift;
             })
@@ -98,6 +116,71 @@ public class ShiftServiceImpl implements ShiftService {
     public Optional<ShiftDTO> findOne(Long id) {
         LOG.debug("Request to get Shift : {}", id);
         return shiftRepository.findById(id).map(shiftMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShiftViewDTO> onDutyNow() {
+        return onDutyAt(LocalDateTime.now(hospitalZone()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShiftViewDTO> onDutyNowInWard(Long wardId) {
+        return onDutyAt(LocalDateTime.now(hospitalZone())).stream().filter(shift -> wardId.equals(shift.wardId())).toList();
+    }
+
+    /**
+     * Who is on duty at a moment, decided by the shared rule rather than by a query.
+     *
+     * <p>The query fetches candidates for today and yesterday and this filters them, which is the same division of
+     * labour the ward-cover rule used: the window comparison lives in one place, {@link ShiftDuty}, where it is
+     * testable to the minute, rather than being restated in JPQL where it would be a second copy that the tests do
+     * not reach. Yesterday is fetched for the night shift — at 02:00 the person on duty is the one whose shift was
+     * written for the day before.
+     */
+    private List<ShiftViewDTO> onDutyAt(LocalDateTime at) {
+        return shiftRepository
+            .findWithPeopleOnDates(ShiftDuty.candidateDates(at))
+            .stream()
+            .filter(shift -> ShiftDuty.isOnDutyAt(shift.getShiftDate(), shift.getStartsAt(), shift.getEndsAt(), at))
+            .map(ShiftViewDTO::from)
+            .toList();
+    }
+
+    /**
+     * The hospital's own wall clock, read from the one place it is configured.
+     *
+     * <p>It matters here and not in the table: a roster says "07:00 to 19:00 on the eighth", and whether that covers
+     * the moment the question is asked is a question about the hospital's clock, not about UTC. Reading the zone from
+     * configuration rather than assuming one is the same choice the appointment reminders already make.
+     */
+    private ZoneId hospitalZone() {
+        return ZoneId.of(properties.getAppointments().getZone());
+    }
+
+    /**
+     * A shift has to be a window.
+     *
+     * <p>A shift that ends when it starts could mean nothing or the whole day, and the roster would then hold a row
+     * that no reader can answer for: {@code ShiftDuty} answers "not on duty" for it, so it would look like cover and
+     * grant nothing — the failure mode that made a period of ward cover refuse equal end times too.
+     */
+    private void refuseAShiftThatIsNotAWindow(Shift shift) {
+        if (ShiftDuty.isWellFormed(shift.getStartsAt(), shift.getEndsAt())) {
+            return;
+        }
+        throw BusinessRuleViolationException.of(
+            "shiftNotAWindow",
+            "shift",
+            (
+                "A shift runs from a start time to a different end time; " +
+                shift.getStartsAt() +
+                " to " +
+                shift.getEndsAt() +
+                " covers no time. A 24-hour duty is two shifts, day and night."
+            )
+        );
     }
 
     private Shift requireStored(Long id) {

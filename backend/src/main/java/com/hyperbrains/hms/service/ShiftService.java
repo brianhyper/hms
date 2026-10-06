@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.service;
 
 import com.hyperbrains.hms.service.dto.ShiftDTO;
+import com.hyperbrains.hms.service.dto.view.ShiftViewDTO;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,4 +51,19 @@ public interface ShiftService {
      * @return the entity.
      */
     Optional<ShiftDTO> findOne(Long id);
+
+    /**
+     * Who is on duty right now, across the hospital.
+     *
+     * @return one entry per shift that covers this moment, named the way a ward may read it.
+     */
+    List<ShiftViewDTO> onDutyNow();
+
+    /**
+     * Who is on duty right now on one ward.
+     *
+     * @param wardId the ward to ask about.
+     * @return the shifts covering this moment on that ward, empty when nobody is.
+     */
+    List<ShiftViewDTO> onDutyNowInWard(Long wardId);
 }

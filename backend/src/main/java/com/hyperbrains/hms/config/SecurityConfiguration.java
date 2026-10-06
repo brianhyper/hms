@@ -465,6 +465,13 @@ public class SecurityConfiguration {
                     // roster is editing what happened.
                     .requestMatchers("/api/shifts", "/api/shifts/**").hasAnyAuthority(SUPER_ADMIN)
 
+                    // ---- The roster, as a ward reads it ----
+                    // A name, a shift and a ward, which is what "who is on duty" needs. Deliberately separate from
+                    // the rows above rather than a widening of them: those name the person by staff record id and
+                    // lead to the staff file, and the ward does not need the file to be told who is on duty. Two
+                    // reads exist so the wide one never has to be the one the ward is given.
+                    .requestMatchers(HttpMethod.GET, "/api/roster", "/api/roster/**").hasAnyAuthority(NURSE, DOCTOR, ADMIN, HR, SUPER_ADMIN)
+
                     .requestMatchers(HttpMethod.GET, "/api/beds", "/api/beds/**").hasAnyAuthority(RECEPTION, NURSE, DOCTOR, ADMIN, SUPER_ADMIN)
                     // Housekeeping does not exist as a Phase 1 role, so closing the cleaning loop after a patient
                     // leaves is a nurse's or an administrator's job. Listed before the bed write catch-all below,

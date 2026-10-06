@@ -193,6 +193,22 @@ class ShiftResourceIT {
         }
     }
 
+    /**
+     * A shift that ends when it starts is refused rather than stored: it could mean nothing or the whole day, and the
+     * roster rule answers "not on duty" for it, so the row would look like cover and grant nothing. A 24-hour duty is
+     * two shifts, day and night.
+     */
+    @Test
+    @Transactional
+    void createShiftRefusesAShiftThatIsNotAWindow() throws Exception {
+        ShiftDTO shiftDTO = shiftMapper.toDto(shift);
+        shiftDTO.setEndsAt(DEFAULT_STARTS_AT);
+
+        restShiftMockMvc
+            .perform(post(ENTITY_API_URL).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(shiftDTO)))
+            .andExpect(status().isConflict());
+    }
+
     @Test
     @Transactional
     void getAllShifts() throws Exception {
