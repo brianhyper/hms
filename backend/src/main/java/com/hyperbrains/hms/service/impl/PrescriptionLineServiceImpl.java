@@ -7,6 +7,7 @@ import com.hyperbrains.hms.service.PrescriptionLineService;
 import com.hyperbrains.hms.service.dto.PrescriptionLineDTO;
 import com.hyperbrains.hms.service.mapper.PrescriptionLineMapper;
 import com.hyperbrains.hms.service.rules.WorkflowOwnedFields;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -45,8 +46,9 @@ public class PrescriptionLineServiceImpl implements PrescriptionLineService {
      * any of them by hand changes what the doctor decided, with nobody's name against the change — and unlike a
      * correction it leaves no record that a different amount was ever prescribed.
      *
-     * <p>The drug and the prescription it hangs off are deliberately not in this list; see
-     * {@code WardCoverServiceImpl} for why references are left to the guard that compares by id.
+     * <p>The drug and the prescription it hangs off are guarded too, but separately and by id rather than by field
+     * name: a reference cannot go in this list, because the stored one is a proxy and this guard compares by identity.
+     * See {@link WorkflowOwnedFields#referenceChanged}.
      */
     private static final String[] WORKFLOW_OWNED_FIELDS = { "dosage", "duration", "quantity" };
 
@@ -86,12 +88,35 @@ public class PrescriptionLineServiceImpl implements PrescriptionLineService {
     }
 
     private void refuseHandEdits(PrescriptionLineDTO requested, PrescriptionLine stored, boolean nullMeansUnchanged) {
-        List<String> changed = WorkflowOwnedFields.changed(
-            prescriptionLineMapper.toEntity(requested),
-            stored,
-            nullMeansUnchanged,
-            WORKFLOW_OWNED_FIELDS
+        List<String> changed = new ArrayList<>(
+            WorkflowOwnedFields.changed(
+                prescriptionLineMapper.toEntity(requested),
+                stored,
+                nullMeansUnchanged,
+                WORKFLOW_OWNED_FIELDS
+            )
         );
+
+        // The references are compared by id, not as entities: the stored side is a Hibernate proxy and reading an id
+        // off it forces a load. The request carries the id as a plain value and the stored ids come from a scalar
+        // projection, so neither side touches a proxy and a legitimate edit that re-sends the same drug is not
+        // mistaken for a re-point.
+        PrescriptionLineRepository.ReferenceIds storedIds = prescriptionLineRepository
+            .findReferenceIds(stored.getId())
+            .orElseThrow(() ->
+                BusinessRuleViolationException.of(
+                    "prescriptionLineNotFound",
+                    "prescriptionLine",
+                    "No prescription line with id " + stored.getId()
+                )
+            );
+        if (WorkflowOwnedFields.referenceChanged(idOfDrug(requested), storedIds.getDrugId(), nullMeansUnchanged)) {
+            changed.add("drug");
+        }
+        if (WorkflowOwnedFields.referenceChanged(idOfPrescription(requested), storedIds.getPrescriptionId(), nullMeansUnchanged)) {
+            changed.add("prescription");
+        }
+
         if (!changed.isEmpty()) {
             throw BusinessRuleViolationException.of(
                 "prescriptionLineNotEditedByHand",
@@ -100,6 +125,16 @@ public class PrescriptionLineServiceImpl implements PrescriptionLineService {
                 String.join(", ", changed)
             );
         }
+    }
+
+    /** The id the request names for the drug, or null when it names none. */
+    private static Long idOfDrug(PrescriptionLineDTO requested) {
+        return requested.getDrug() == null ? null : requested.getDrug().getId();
+    }
+
+    /** The id the request names for the prescription, or null when it names none. */
+    private static Long idOfPrescription(PrescriptionLineDTO requested) {
+        return requested.getPrescription() == null ? null : requested.getPrescription().getId();
     }
 
     private PrescriptionLine requireStored(Long id) {

@@ -314,6 +314,60 @@ class PrescriptionLineResourceIT {
         assertThat(getPersistedPrescriptionLine(prescriptionLine).getDosage()).isEqualTo(DEFAULT_DOSAGE);
     }
 
+    /**
+     * A line hangs off a drug and a prescription, and neither may be re-pointed by hand: that would quietly move what
+     * was prescribed onto a different medicine. The guard compares the ids, because the stored references are proxies.
+     */
+    @Test
+    @Transactional
+    void putThatRepointsTheDrugIsRefused() throws Exception {
+        insertedPrescriptionLine = prescriptionLineRepository.saveAndFlush(prescriptionLine);
+        Long drugBefore = prescriptionLine.getDrug().getId();
+
+        Drug anotherDrug = DrugResourceIT.createEntity();
+        em.persist(anotherDrug);
+        em.flush();
+
+        PrescriptionLine repointed = prescriptionLineRepository.findById(prescriptionLine.getId()).orElseThrow();
+        em.detach(repointed);
+        repointed.setDrug(anotherDrug);
+        PrescriptionLineDTO prescriptionLineDTO = prescriptionLineMapper.toDto(repointed);
+
+        restPrescriptionLineMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, prescriptionLineDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(prescriptionLineDTO))
+            )
+            .andExpect(status().isConflict());
+
+        assertThat(prescriptionLineRepository.findReferenceIds(prescriptionLine.getId()).orElseThrow().getDrugId())
+            .as("the line still hangs off the medicine the doctor chose")
+            .isEqualTo(drugBefore);
+    }
+
+    /**
+     * Sending the same references back is not a re-point. This is what comparing ids buys: with the references
+     * compared as entities, a legitimate edit that re-sends the same drug as a different object would be refused.
+     */
+    @Test
+    @Transactional
+    void putThatSendsTheSameReferencesBackIsAccepted() throws Exception {
+        insertedPrescriptionLine = prescriptionLineRepository.saveAndFlush(prescriptionLine);
+
+        PrescriptionLine unchanged = prescriptionLineRepository.findById(prescriptionLine.getId()).orElseThrow();
+        em.detach(unchanged);
+        PrescriptionLineDTO prescriptionLineDTO = prescriptionLineMapper.toDto(unchanged);
+
+        restPrescriptionLineMockMvc
+            .perform(
+                put(ENTITY_API_URL_ID, prescriptionLineDTO.getId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(om.writeValueAsBytes(prescriptionLineDTO))
+            )
+            .andExpect(status().isOk());
+    }
+
     @Test
     @Transactional
     void putNonExistingPrescriptionLine() throws Exception {

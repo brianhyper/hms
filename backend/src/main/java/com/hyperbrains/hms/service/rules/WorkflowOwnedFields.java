@@ -45,6 +45,27 @@ public final class WorkflowOwnedFields {
     }
 
     /**
+     * Whether a reference changed, comparing identifiers rather than the two references themselves.
+     *
+     * <p>Added alongside {@link #changed}, which is left as it is. A reference on a stored row is a Hibernate proxy,
+     * and reading an identifier off it forces a load — the reason references were excluded from the field-name guard.
+     * Here both sides are plain values instead: the id the request carries, and a scalar projection of the stored
+     * row. No proxy is touched, so nothing can throw and a legitimate edit that re-sends the same drug is not
+     * mistaken for a re-point.
+     *
+     * @param requestedId the id the request would leave in place, or null when it says nothing about it
+     * @param storedId the id on the stored row
+     * @param nullMeansUnchanged true for a PATCH, where an absent id means "leave it alone", and false for a PUT,
+     *     which carries the whole record and therefore means "clear it"
+     */
+    public static boolean referenceChanged(Object requestedId, Object storedId, boolean nullMeansUnchanged) {
+        if (requestedId == null && nullMeansUnchanged) {
+            return false;
+        }
+        return !Objects.equals(requestedId, storedId);
+    }
+
+    /**
      * Whether two values count as different.
      *
      * <p>Two cases are deliberately not {@link Objects#equals}. A null on a PATCH means "leave it alone"

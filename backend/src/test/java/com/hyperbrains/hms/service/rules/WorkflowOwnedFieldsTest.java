@@ -94,4 +94,25 @@ class WorkflowOwnedFieldsTest {
 
         assertThat(WorkflowOwnedFields.changed(stored, stored, false, "status", "amount", "notes")).isEqualTo(List.of());
     }
+
+    @Test
+    void aReferenceIsTheSameReferenceWhenTheIdIsTheSame() {
+        assertThat(WorkflowOwnedFields.referenceChanged(42L, 42L, false)).isFalse();
+        assertThat(WorkflowOwnedFields.referenceChanged(42L, 43L, false)).isTrue();
+    }
+
+    @Test
+    void anAbsentReferenceMeansLeaveItAloneOnAPatchAndClearItOnAPut() {
+        assertThat(WorkflowOwnedFields.referenceChanged(null, 42L, true))
+            .as("a PATCH that says nothing about it is not re-pointing it")
+            .isFalse();
+        assertThat(WorkflowOwnedFields.referenceChanged(null, 42L, false))
+            .as("a PUT that leaves it out would clear it")
+            .isTrue();
+    }
+
+    @Test
+    void anUnsetReferenceIsNotARepoint() {
+        assertThat(WorkflowOwnedFields.referenceChanged(null, null, false)).isFalse();
+    }
 }

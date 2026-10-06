@@ -3,6 +3,7 @@ package com.hyperbrains.hms.repository;
 import com.hyperbrains.hms.domain.PrescriptionLine;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -41,4 +42,20 @@ public interface PrescriptionLineRepository extends JpaRepository<PrescriptionLi
 
     @Query("select count(l) from PrescriptionLine l where l.prescription.id = :prescriptionId")
     long countByPrescriptionId(@Param("prescriptionId") Long prescriptionId);
+
+    /**
+     * The identifiers of the two references a line hangs off, as plain values.
+     *
+     * <p>A scalar projection, not the line's own references: reading an id off a Hibernate-backed reference forces a
+     * load and can throw, which is what stopped an id-based reference guard being added the first time. The service's
+     * reference guard reads both sides from here and from the request, never through a proxy.
+     */
+    interface ReferenceIds {
+        Long getDrugId();
+
+        Long getPrescriptionId();
+    }
+
+    @Query("select l.drug.id as drugId, l.prescription.id as prescriptionId from PrescriptionLine l where l.id = :id")
+    Optional<ReferenceIds> findReferenceIds(@Param("id") Long id);
 }
