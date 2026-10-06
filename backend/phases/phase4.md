@@ -152,6 +152,15 @@ Each of these is a question, not a task: no code waits on anything else. Send th
 7. **Double shifts.** The roster is one row per person per day — the phase document's own wording — so a 12-hour day
    followed by a 12-hour night on the same date is refused as well. Is that real here? If it is, the rule becomes one
    row per person, per day, **per shift type**, which is one migration.
+8. **Open-ended ward cover.** `WardCover.coversTo` is nullable and an open-ended cover is a supported arrangement —
+   `WardCoverage` has a test for it — but every shift has an end, because a roster entry with no end is a roster entry
+   nobody can be on duty for. So what is an open-ended cover in roster terms: a shift that runs to the end of its own
+   day, a conversion that refuses it and lists the doctors for somebody to decide, or an end date the client supplies?
+   The same question in miniature for a cover held by a doctor who has no `StaffRecord`: HR creates the record as part
+   of the conversion, or the cover is refused and listed.
+
+   This is the last thing in front of the roster gate. It is a data-loss decision on live access — a cover that is not
+   converted is access that silently disappears — so it is asked rather than assumed.
 
 **Answered already, no need to ask again:** the roster as the single source of truth (client ruling 1a), the
 break-glass scope, the identity-document age rule, the Employment Act retention decision, and the single-node v1.0

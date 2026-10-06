@@ -41,6 +41,7 @@ are delivered. Phase 4 has P4.0 (`StaffRecord`) delivered. **Two gates stand in 
 | — | **Phase 3 closed** — all ten slices S3.0-S3.9 delivered; its residue reclassified as a backlog that holds nothing | `8ac7b9e` |
 | P4.1 | roster gate started: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, one person one shift a day | `9cf294a` |
 | P4.1 | roster gate step 2: `Shift` CRUD and its access rows — read HR/Admin, every write Super Admin, no delete route, author stamped from the caller | `470a3d6` |
+| P4.1 | roster gate step 3: `ShiftDuty` rule, the ward-facing `ShiftViewDTO`, and `GET /api/roster/**` | `24bff91` |
 
 ## The roster gate (P4.1) — in progress
 
@@ -51,7 +52,9 @@ step by step so a later session knows where this stopped.
 |---|---|---|
 | 1 | The model: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, and one person one shift a day | **done** (`9cf294a`) — `ShiftModelIT` proves the day, the person, the ward, the writer, the ward being optional, and the unique rule |
 | 2 | CRUD: DTO, mapper, service, resource, and the RBAC rows (`CatchAllCoverageIT` fails the build until the write rows exist) | **done** (`470a3d6`) — the person goes out as an id only, reads stop at HR/Admin, writes are Super Admin, there is no `DELETE`, and the author is stamped from the caller |
-| 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | **next** — and this is the step that builds the ward-facing view that names the person and carries nothing else of theirs |
+| 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | **done** (`24bff91`) — `ShiftDuty` owns the window, a night shift belongs to the day it started, and the ward-facing view names the person with no field for anything else of theirs |
+| 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | **coupled to step 5, deliberately.** Switching the rule before the covers are converted points every doctor at an empty table and takes their wards away |
+| 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | **this is the blocker, and it needs question 8**: the conversion is not mechanical. `coversTo` is nullable in `WardCover` and every shift has an end; `Shift.staffRecord` is required and reaches a `User` only optionally. An open-ended cover, and a cover held by a doctor with no staff record, have no shift to become — and a dropped cover is dropped access |
 | 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | not started |
 | 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | not started |
 | 6 | `WardCover` and `WardCoverage` retired once nothing reads them | not started |
