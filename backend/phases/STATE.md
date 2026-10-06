@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `b347ff1` (0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `da80137` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -29,12 +29,15 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | Ruling 5 | id-based reference guard in `WorkflowOwnedFields`; applied to `PrescriptionLine` (drug, prescription) | `dc55537` |
 | — | Break-glass release wired to the dispensing gate: scope, invoker, mandatory reason, own audit event, Administration review route | `5e2b5fa` |
 | Ruling 5 | id-based reference guard applied to `WardCover` (ward, doctor, assignedBy) | `b347ff1` |
+| Ruling 5 | admission/bed reference refusals covered by tests; their guards were already id-based | `da80137` |
 
 ## Next, in order
 
-1. **Ruling 5 (continued)** — apply the id-based reference guard to the remaining services that own a reference, one
-   at a time: the admission/bed guards (`Admission`, `Bed`). `changed` is untouched; the new
-   `WorkflowOwnedFields.referenceChanged` compares plain ids, never a proxy. Re-pointing refused, same id accepted.
+1. **Ruling 5 (continued)** — the rest of the guarded services still exclude their references, so a hand-written
+   update can re-point them: `Payment` (its bill), `Dispense` (its prescription), `OrderExecution` (its order),
+   `Bill`/`BillLineItem` (their visit/bill), `DiagnosticOrder` and `Prescription` (their visit and doctor), and
+   `DoctorOrder` (its admission). One service at a time: `referenceChanged` plus a scalar projection, re-pointing
+   refused, same id accepted. `Admission`/`Bed` already compare by id and are now covered by tests.
 2. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
 3. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
