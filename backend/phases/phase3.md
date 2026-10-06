@@ -129,9 +129,14 @@ left in a conversation, which is the reason this section exists.
 - **Roster (client ruling 1a): one source of truth, the roster.** `Shift` owns who is on duty when, "who is covering
   this ward now" is a query over it, and existing `WardCover` rows become shifts. It runs as its own gate and gates
   Phase 4. See decision 4 in `phase4.md` and `blockers-research.md` §3.
-- **`identityDocumentNumber` is the patient field for the age rule — patients only.** Confirmed. The earlier conditions
-  stand, emergency intake keeps an explicit **"ID pending" marker**, and `StaffRecord`'s identity field is separate
-  and unaffected.
+- **`identityDocumentNumber` is the patient field for the age rule — patients only.** Confirmed; `StaffRecord`'s
+  identity field is separate and unaffected. **Enforced 2026-10-06 (`2763195`) at the registration operation:** an
+  adult past nineteen must have a document or the explicit `IdentityDocumentType.PENDING` marker, a minor is never
+  refused, the marker may not carry a number and a named type may not omit one, and the correction route refuses the
+  marker. Emergency intake is a separate operation and stays unaffected. **Caveat:** the generated Super-Admin-only
+  `PUT /api/patients/{id}` is still an unguarded raw update that could set the marker — the same pre-existing gap as
+  handoff item 3 below — and the generated TypeScript enum was not regenerated, so the generated entity form does not
+  offer the new value.
 - **Employment Act: records must be kept after termination, so staff erasure is not built** — closing the open half of
   ruling 6 above. Section 74 requires every employer to keep work records, and courts treat missing records as the
   employer's failure. The retention **period** is unconfirmed: a court filing points to section 10(6) and (7) and five
