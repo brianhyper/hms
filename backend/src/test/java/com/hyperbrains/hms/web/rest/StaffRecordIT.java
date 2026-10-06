@@ -1,6 +1,7 @@
 package com.hyperbrains.hms.web.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -104,6 +105,45 @@ class StaffRecordIT {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.fullName").value("Grace Wanjiru " + SUFFIX))
             .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    /**
+     * A file is opened for a person, not for a number.
+     *
+     * <p>The hospital holds a record on everyone who works in it, and a cleaner, a porter or a driver may have no
+     * identity number to hand; requiring one refused exactly the records the file exists to allow. The body is
+     * written out by hand rather than built by {@code aStaffRecord(...)} because that helper concatenates its
+     * arguments, so a null number would arrive as the four characters {@code null} and the test would pass for the
+     * wrong reason.
+     */
+    @Test
+    void aFileCanBeOpenedForSomebodyWithNoIdentityNumber() throws Exception {
+        String fullName = "Samuel Mwangi " + SUFFIX;
+
+        long id = created(
+            "{" +
+            "\"fullName\":\"" +
+            fullName +
+            "\"," +
+            "\"jobTitle\":\"Porter\"," +
+            "\"contactPhone\":\"+254711111111\"," +
+            "\"employmentStartDate\":\"2024-01-15\"," +
+            "\"status\":\"ACTIVE\"," +
+            "\"department\":{\"id\":" +
+            department.getId() +
+            "}" +
+            "}"
+        );
+
+        assertThat(staffRecordRepository.findById(id).orElseThrow().getNationalId())
+            .as("the number is not required to open a file")
+            .isNull();
+
+        mockMvc
+            .perform(get("/api/staff-records/{id}", id))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value(fullName))
+            .andExpect(jsonPath("$.nationalId").value(nullValue()));
     }
 
     @Test

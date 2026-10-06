@@ -43,15 +43,6 @@ public class StaffRecord implements Serializable {
     private String fullName;
 
     /**
-     * The identity this record is keyed on, and unique.
-     *
-     * <p>It is what stops the same person being entered twice under two spellings of their name, which is the one
-     * failure a staff file exists to prevent. It is also what Phase 4's rostering, leave and payroll rows can be
-     * trusted to be pointing at a real person through.
-     */
-    @NotNull
-    @Size(max = 32)
-    /**
      * The identity this record is keyed on, and unique when it is there.
      *
      * <p>Optional, deliberately: this table holds a file on everyone who works here, including people who have no
