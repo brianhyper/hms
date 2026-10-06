@@ -152,15 +152,37 @@ Each of these is a question, not a task: no code waits on anything else. Send th
 7. **Double shifts.** The roster is one row per person per day — the phase document's own wording — so a 12-hour day
    followed by a 12-hour night on the same date is refused as well. Is that real here? If it is, the rule becomes one
    row per person, per day, **per shift type**, which is one migration.
-8. **Open-ended ward cover.** `WardCover.coversTo` is nullable and an open-ended cover is a supported arrangement —
-   `WardCoverage` has a test for it — but every shift has an end, because a roster entry with no end is a roster entry
-   nobody can be on duty for. So what is an open-ended cover in roster terms: a shift that runs to the end of its own
-   day, a conversion that refuses it and lists the doctors for somebody to decide, or an end date the client supplies?
-   The same question in miniature for a cover held by a doctor who has no `StaffRecord`: HR creates the record as part
-   of the conversion, or the cover is refused and listed.
+8. **Open-ended ward cover — ANSWERED (client ruling, 2026-10-06).** `WardCover.coversTo` is nullable and every shift
+   has an end, so an open-ended cover is **BLOCKED** by the conversion: the report names the doctor, the ward and the
+   start, and HR resolves each one by giving it an explicit end date. **No end date is invented in code.** Going
+   forward every `Shift` has an end and open-ended cover is not carried into the roster. A cover held by a doctor with
+   no `StaffRecord` is **BLOCKED** for the same reason and HR creates the record first — the conversion does not
+   auto-create staff records, because that would invent a job title and identity data.
 
-   This is the last thing in front of the roster gate. It is a data-loss decision on live access — a cover that is not
-   converted is access that silently disappears — so it is asked rather than assumed.
+### The WardCover → Shift conversion (client ruling, 2026-10-06)
+
+The principle, and the reason for everything below it: **conversion never drops a row, never invents HR data and never
+narrows access silently.** If a cover cannot be converted exactly, the release does not proceed until a person resolves
+it.
+
+1. **A dry run first.** A conversion report — a command or a read-only endpoint — lists every `ward_cover` row as
+   `CONVERTIBLE` or `BLOCKED` with its reason. **Step 4 deploys only when `BLOCKED` is empty.**
+2. **Open-ended cover (`coversTo` null): BLOCKED.** The report names the doctor, the ward and the start; HR resolves it
+   by giving an explicit end date. Nothing is invented.
+3. **Doctor with no staff record: BLOCKED.** HR creates the `StaffRecord` first.
+4. **Arbitrary instants (a cover starting at 14:37): round OUTWARD to the enclosing shift boundary**, so a doctor never
+   loses access mid-cover. Widening is acceptable for clinical continuity; the original instants are kept in the report
+   and in the shift's note. A cover spanning several days becomes one shift per day, and one crossing midnight is split
+   at midnight.
+5. **Transaction safety.** The conversion and the access-rule switch ship together, and the migration **asserts that
+   every cover in force at deploy time has a matching shift**, aborting loudly if not. Counts are compared before and
+   after.
+6. **`ward_cover` stays read-only for one release** (already ruled). The roster is the only writable source.
+
+**Tests this ruling requires**, and they are the acceptance criteria rather than extras: a fixture with one convertible
+cover plus each odd shape (open-ended, no staff record, a 14:37 start, multi-day, crossing midnight); **equivalence** —
+for every cover in force before the conversion, the doctor can see the ward after it; the `BLOCKED` report names the
+right rows and blocks the deploy; and the access rule reads only the roster after the switch.
 
 **Answered already, no need to ask again:** the roster as the single source of truth (client ruling 1a), the
 break-glass scope, the identity-document age rule, the Employment Act retention decision, and the single-node v1.0

@@ -53,19 +53,22 @@ step by step so a later session knows where this stopped.
 | 1 | The model: `Shift` and `ShiftType`, the `shift` table with its three foreign keys, and one person one shift a day | **done** (`9cf294a`) — `ShiftModelIT` proves the day, the person, the ward, the writer, the ward being optional, and the unique rule |
 | 2 | CRUD: DTO, mapper, service, resource, and the RBAC rows (`CatchAllCoverageIT` fails the build until the write rows exist) | **done** (`470a3d6`) — the person goes out as an id only, reads stop at HR/Admin, writes are Super Admin, there is no `DELETE`, and the author is stamped from the caller |
 | 3 | The roster queries: who is on duty now, and who is covering a ward now (the `inForce` rule moves onto the shift rather than being duplicated) | **done** (`24bff91`) — `ShiftDuty` owns the window, a night shift belongs to the day it started, and the ward-facing view names the person with no field for anything else of theirs |
-| 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | **coupled to step 5, deliberately.** Switching the rule before the covers are converted points every doctor at an empty table and takes their wards away |
-| 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | **this is the blocker, and it needs question 8**: the conversion is not mechanical. `coversTo` is nullable in `WardCover` and every shift has an end; `Shift.staffRecord` is required and reaches a `User` only optionally. An open-ended cover, and a cover held by a doctor with no staff record, have no shift to become — and a dropped cover is dropped access |
+| 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | **ruled and unblocked (`phase4.md`, the conversion ruling). Ships in the same release as step 5** |
+| 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | **ruled, not built.** A **dry run first**: a report lists every `ward_cover` row `CONVERTIBLE` or `BLOCKED` with its reason, and step 4 deploys only when `BLOCKED` is empty. Open-ended cover and a doctor with no staff record are `BLOCKED` for HR to resolve — nothing is invented. Arbitrary instants round **outward**, multi-day covers become one shift per day, midnight splits. The migration **aborts loudly** if a cover in force has no shift, and counts are compared before and after |
 | 4 | The access rule reads the roster instead of `WardCover` — this is the part that changes a security rule | not started |
 | 5 | Existing `WardCover` rows become shifts, and `WardCover` goes read-only for one release | not started |
 | 6 | `WardCover` and `WardCoverage` retired once nothing reads them | not started |
 
 ## Next, in order
 
-1. **The roster gate (Ruling 1) — the gate for Phase 4, decided and unbuilt.** `Shift` owns who is on duty when; "who
-   is covering this ward now" becomes a query over it; existing `WardCover` rows become shifts and `WardCover` goes
-   read-only for one release; the `inForce` rule moves onto the shift. Nothing blocks it: the source-of-truth question
-   was answered on 2026-10-06 (option 1, client ruling 1a), and shift-type values can be added later without a
-   migration because the type is stored as a string.
+1. **The roster gate (Ruling 1) — steps 1-3 built, steps 4-5 ruled and paused.** `Shift` owns who is on duty when.
+   DONE: the model (`9cf294a`), the CRUD and its access rows (`470a3d6`), the rule and the ward-facing read
+   (`24bff91`). REMAINING: the conversion and the access-rule switch, which **ship in one release** and which the
+   client has now ruled on in full (`phase4.md`, the conversion ruling). It is paused rather than next because the
+   ruling makes it a **release activity, not a coding one**: a dry-run report must list `BLOCKED` rows, HR has to
+   resolve each of them (an explicit end date, or a `StaffRecord` that does not exist yet), and the release does not
+   proceed until `BLOCKED` is empty. Nobody can do that inside a session, so the second gate below is taken first.
+2. **Discharge, with outcomes (Phase 2 slice 9) — in progress, and the second gate in front of Phase 4.**
 2. **Discharge, with outcomes (Phase 2 slice 9) — the second gate.** There is no discharge route in the application
    today: `VisitStatusService.onDischarged` is called by a test and by nothing else, and the columns it writes exist
    with nothing that reaches them. It is also what unblocks S3.5's real plug-in point.
