@@ -9,7 +9,7 @@ read them when you need a specific requirement, not to find out where things are
 mvnw test -Dtest=ClassName          # targeted, while building
 mvnw clean verify                   # the real gate: spotless, modernizer, checkstyle, all tests
 ```
-`test` does not run modernizer or checkstyle. The gate is green at `da80137` (0 failures).
+`test` does not run modernizer or checkstyle. The gate is green at `63e6372` (0 failures).
 
 **One slice per session.** A fresh conversation is cheap; a long one is not. Keep the state here, not in the thread.
 
@@ -30,14 +30,20 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 | — | Break-glass release wired to the dispensing gate: scope, invoker, mandatory reason, own audit event, Administration review route | `5e2b5fa` |
 | Ruling 5 | id-based reference guard applied to `WardCover` (ward, doctor, assignedBy) | `b347ff1` |
 | Ruling 5 | admission/bed reference refusals covered by tests; their guards were already id-based | `da80137` |
+| Ruling 5 | id-based reference guard on the money link: `Bill.payment` cannot be re-pointed by hand (a bill's `payment` is the side that owns the foreign key) | `588201a` |
+| — | `/api/authorities` reads as Super Admin; POST and DELETE denied for every role, Super Admin included | `efe30c0` |
+| — | route catalogue and role-by-route matrix committed under `docs/` | `63e6372` |
 
 ## Next, in order
 
-1. **Ruling 5 (continued)** — the rest of the guarded services still exclude their references, so a hand-written
-   update can re-point them: `Payment` (its bill), `Dispense` (its prescription), `OrderExecution` (its order),
-   `Bill`/`BillLineItem` (their visit/bill), `DiagnosticOrder` and `Prescription` (their visit and doctor), and
-   `DoctorOrder` (its admission). One service at a time: `referenceChanged` plus a scalar projection, re-pointing
-   refused, same id accepted. `Admission`/`Bed` already compare by id and are now covered by tests.
+1. **Ruling 5 (continued) — stopped by ruling, 2026-10-06.** The money case is done and it is the one that mattered:
+   the link lives on `Bill.payment`, which owns the foreign key, and it is guarded by id (`588201a`).
+   `Payment.bill` is the inverse side (`mappedBy`) and has nothing to re-point, so `Payment`'s service needed no
+   reference guard of its own. The remaining services still exclude their references from the field-name guard, so a
+   hand-written update can re-point them: `Dispense` (its prescription), `OrderExecution` (its order), `BillLineItem`
+   (its bill), `DiagnosticOrder` and `Prescription` (their visit and doctor), and `DoctorOrder` (its admission).
+   **Do not work through these one at a time** — they fold into Group C3, item 9. `Admission`/`Bed` compare by id
+   already and are closed as well (`phase4.md`).
 2. **Ruling 4** — refuse create-by-hand on the nine services, one at a time, each preceded by confirming a workflow
    create path exists for that role. Update each generated create test.
 3. **Ruling 1** — the roster gate on its own: `Shift` owns who is on duty, `WardCover` read-only for one release.
@@ -52,6 +58,31 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 7. **Handoff gap — the reset key is stored in clear text**, and an expired, spent or unknown reset link answers **500**
    instead of 400.
 8. **Handoff gap — reset links live for one day**; minutes to hours is right for a token that takes over an account.
+9. **Group C3 — the value-guard layer**, which already covers the status-bearing entities the rest of Ruling 5 named.
+   It gets **one structural test**, not a second mechanism: a reference field on a guarded entity must be classified
+   either fixed-after-create or free, and the build fails if it is neither. That is the whole of the reference-guard
+   question; `WorkflowOwnedFields.referenceChanged` plus a scalar projection is the mechanism it tests.
+10. **Group B — remove or disable `POST /api/admin/users/{login}/initial-password`.** It sets a password on somebody
+    else's behalf and contradicts the link-only rule S3.2 settled on: an account is handed a link, and only the person
+    who owns it ever chooses its password. Found by reading the route catalogue.
+11. **`GET /api/record-history/{entityName}/{entityId}` is unscoped.** It is one route for every entity, admitted by
+    one row (`NURSE`, `DOCTOR`, `ADMIN`, `SUPER_ADMIN`), and `AuditLogServiceImpl.trail` filters by entity name and id
+    only - so every clinical role can read a `StaffRecord`'s history and a `User`'s history. Staff-record history is
+    employment data and account history is security data, and both must be HR and Super Admin only. Needs per-entity
+    scoping in the service (an endpoint rule cannot express it: the entity is a path variable).
+
+## Reports asked for, and their answers
+
+- **Exposure of the eight guarded services' PUT/PATCH** (Ruling 5): all eight are **Super Admin only**. Every
+  status-bearing entity has a method-agnostic `hasAnyAuthority(SUPER_ADMIN)` row over its raw CRUD, so the only caller
+  who could re-point a reference by hand was Super Admin, reaching for the documented escape hatch. That is why the
+  reference guard is still worth having - it is what makes the escape hatch safe - but the exposure was never a
+  routine path.
+- **Do the two test controllers ship?** No. `ExceptionTranslatorTestController` and `WebConfigurerTestController` are
+  both already under `src/test/java` (`web/rest/errors/` and `config/`), so they are not in the packaged jar. They
+  appear in the route catalogue because it was dumped from the running application during tests. No change needed.
+- **Who may read each entity's history?** The same four roles for every entity - `NURSE`, `DOCTOR`, `ADMIN`,
+  `SUPER_ADMIN` - which is the item 11 gap.
 
 ## Waiting on a person
 
@@ -68,4 +99,5 @@ mvnw clean verify                   # the real gate: spotless, modernizer, check
 5. `clean verify` per slice, not at the end.
 6. Check a precondition exists before starting (entity, plug-in point, field name).
 7. Commit only when its own tests are green; revert rather than commit red.
-8. `git add` explicit paths — `endpointAPI.md` is the user's and must not be committed.
+8. `git add` explicit paths, always — never `git add -A`. `docs/api-endpoints.md` is the one generated file that is
+   committed; the catalogue is regenerated after each group.

@@ -35,7 +35,6 @@ Doctor's-round clinical-note decision (Inpatient gap #1)
 Bed-day/doctor's-round billing — blocked on real client rates
 Discharge outcome type (referred-out/AMA/absconded/deceased)
 AdHocCharge's missing Bill/Visit FK link
-Admission/Bed guards not yet folded into the shared WorkflowOwnedFields helper
 Value-guard layer (stopping Super Admin from hand-editing status/amount fields) — not started
 ---
 
@@ -108,10 +107,14 @@ Phase 3 is not closed. Outstanding, in the order I would take them:
   first login, and **revoking live tokens when an account is deactivated**, which is the case this was raised
   for: a deactivated account keeps working until its token expires. Independent of this phase.
 - **The value-guard layer** (listed above) — the other half of the domain-operation rule.
-- **Admission/Bed folded into `WorkflowOwnedFields`** (listed above). Attempted on 2026-09-30 and reverted: 
-  comparing references by id threw against Hibernate-backed references and turned every guarded PUT/PATCH into
-  a 500, including the edits that must be allowed. It needs doing again against real entities in an integration
-  test — the unit test passed while the integration tests failed, which is the lesson.
+- **Admission/Bed folded into `WorkflowOwnedFields`** — **closed by ruling, 2026-10-06: not to be done.** Attempted on
+  2026-09-30 and reverted: comparing references by id threw against Hibernate-backed references and turned every
+  guarded PUT/PATCH into a 500, including the edits that must be allowed. Both services compare their own references
+  by id already (`Admission.primaryDoctor`, `Bed.ward`), against stored ids read as scalars rather than through a
+  proxy, and their guards work; the shared helper would have been a cosmetic consolidation, not a fix. Closed rather
+  than left open so that it is not attempted a third time. What is left of the whole question is one structural test
+  (Group C3): a reference field on a guarded entity must be classified fixed-after-create or free, and fails the build
+  if it is neither.
 - **S3.4** `PatientAccessLog`, **S3.5** the standard override mechanism (Administration, mandatory reason),
   **S3.7** the drug name/price snapshot on prescription and dispense lines, **S3.3** audit-action constants
   for the account events.
