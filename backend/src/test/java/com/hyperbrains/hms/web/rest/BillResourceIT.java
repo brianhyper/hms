@@ -11,8 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hyperbrains.hms.IntegrationTest;
 import com.hyperbrains.hms.domain.Bill;
+import com.hyperbrains.hms.domain.Payment;
 import com.hyperbrains.hms.domain.enumeration.BillStatus;
 import com.hyperbrains.hms.repository.BillRepository;
+import com.hyperbrains.hms.repository.PaymentRepository;
 import com.hyperbrains.hms.service.dto.BillDTO;
 import com.hyperbrains.hms.service.mapper.BillMapper;
 import jakarta.persistence.EntityManager;
@@ -62,6 +64,9 @@ class BillResourceIT {
 
     @Autowired
     private BillRepository billRepository;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
 
     @Autowired
     private BillMapper billMapper;
@@ -255,6 +260,58 @@ class BillResourceIT {
         Bill reloaded = getPersistedBill(bill);
         assertThat(reloaded.getTotalAmount()).isEqualByComparingTo(DEFAULT_TOTAL_AMOUNT);
         assertThat(reloaded.getPaidAt()).isEqualTo(DEFAULT_PAID_AT);
+    }
+
+    /**
+     * The payment that settled a bill may not be re-pointed by hand. It is what says the money in a receipt reached this
+     * bill, and moving it re-attributes a payment that its own row already records. Compared by id, because the stored
+     * reference is a proxy.
+     */
+    @Test
+    @Transactional
+    void putThatRepointsThePaymentIsRefused() throws Exception {
+        Payment settled = paymentRepository.saveAndFlush(PaymentResourceIT.createEntity(em));
+        bill.payment(settled);
+        insertedBill = billRepository.saveAndFlush(bill);
+
+        // A second payment to re-point at. A receipt number is unique and the fixture builder reuses one, so the
+        // second payment needs its own.
+        Payment another = PaymentResourceIT.createEntity(em);
+        another.setReceiptNumber("Repoint Receipt " + longCount.incrementAndGet());
+        Payment other = paymentRepository.saveAndFlush(another);
+
+        Bill repointed = billRepository.findById(bill.getId()).orElseThrow();
+        em.detach(repointed);
+        repointed.payment(other);
+        BillDTO billDTO = billMapper.toDto(repointed);
+
+        restBillMockMvc
+            .perform(put(ENTITY_API_URL_ID, billDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(billDTO)))
+            .andExpect(status().isConflict());
+
+        assertThat(billRepository.findReferenceIds(bill.getId()).orElseThrow().getPaymentId())
+            .as("the bill still names the payment that settled it")
+            .isEqualTo(settled.getId());
+    }
+
+    /**
+     * Sending the same payment back is not a re-point. This is what comparing ids buys: with the references compared as
+     * entities, a legitimate edit that re-sends the same payment as a different object would be refused.
+     */
+    @Test
+    @Transactional
+    void putThatSendsTheSamePaymentBackIsAccepted() throws Exception {
+        Payment settled = paymentRepository.saveAndFlush(PaymentResourceIT.createEntity(em));
+        bill.payment(settled);
+        insertedBill = billRepository.saveAndFlush(bill);
+
+        Bill unchanged = billRepository.findById(bill.getId()).orElseThrow();
+        em.detach(unchanged);
+        BillDTO billDTO = billMapper.toDto(unchanged);
+
+        restBillMockMvc
+            .perform(put(ENTITY_API_URL_ID, billDTO.getId()).contentType(MediaType.APPLICATION_JSON).content(om.writeValueAsBytes(billDTO)))
+            .andExpect(status().isOk());
     }
 
     @Test

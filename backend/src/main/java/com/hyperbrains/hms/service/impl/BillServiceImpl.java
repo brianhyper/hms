@@ -7,6 +7,7 @@ import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.dto.BillDTO;
 import com.hyperbrains.hms.service.mapper.BillMapper;
 import com.hyperbrains.hms.service.rules.WorkflowOwnedFields;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,10 @@ public class BillServiceImpl implements BillService {
      * A hand edit to either leaves a bill whose total does not follow from its own lines, or one that says it was
      * settled by a payment that no payment row records — which is exactly the kind of figure that survives every
      * later report, because nothing downstream re-derives it.
+     *
+     * <p>The payment that settled the bill is guarded too, but separately and by id rather than by field name: a
+     * reference cannot go in this list, because the stored one is a proxy and this guard compares by identity. See
+     * {@link WorkflowOwnedFields#referenceChanged}.
      */
     private static final String[] WORKFLOW_OWNED_FIELDS = { "totalAmount", "paidAt", "status" };
 
@@ -83,12 +88,21 @@ public class BillServiceImpl implements BillService {
     }
 
     private void refuseHandEdits(BillDTO requested, Bill stored, boolean nullMeansUnchanged) {
-        List<String> changed = WorkflowOwnedFields.changed(
-            billMapper.toEntity(requested),
-            stored,
-            nullMeansUnchanged,
-            WORKFLOW_OWNED_FIELDS
+        List<String> changed = new ArrayList<>(
+            WorkflowOwnedFields.changed(billMapper.toEntity(requested), stored, nullMeansUnchanged, WORKFLOW_OWNED_FIELDS)
         );
+
+        // The payment is compared by id, not as an entity: the stored one is a Hibernate proxy and reading an id off it
+        // forces a load. The request carries the id as a plain value and the stored id comes from a scalar projection,
+        // so neither side touches a proxy and a legitimate edit that re-sends the same payment is not mistaken for a
+        // re-point.
+        BillRepository.ReferenceIds storedIds = billRepository
+            .findReferenceIds(stored.getId())
+            .orElseThrow(() -> BusinessRuleViolationException.of("billNotFound", "bill", "No bill with id " + stored.getId()));
+        if (WorkflowOwnedFields.referenceChanged(idOfPayment(requested), storedIds.getPaymentId(), nullMeansUnchanged)) {
+            changed.add("payment");
+        }
+
         if (!changed.isEmpty()) {
             throw BusinessRuleViolationException.of(
                 "billNotEditedByHand",
@@ -97,6 +111,10 @@ public class BillServiceImpl implements BillService {
                 String.join(", ", changed)
             );
         }
+    }
+
+    private static Long idOfPayment(BillDTO requested) {
+        return requested.getPayment() == null ? null : requested.getPayment().getId();
     }
 
     private Bill requireStored(Long id) {
