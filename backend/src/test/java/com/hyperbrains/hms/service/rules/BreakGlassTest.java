@@ -2,6 +2,8 @@ package com.hyperbrains.hms.service.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hyperbrains.hms.domain.enumeration.VisitPriority;
+import com.hyperbrains.hms.domain.enumeration.VisitType;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -29,5 +31,15 @@ class BreakGlassTest {
     @Test
     void nobodySignedInMayNotInvokeIt() {
         assertThat(BreakGlass.mayBeInvokedBy(List.of())).isFalse();
+    }
+
+    /** The confirmed scope: an emergency-triaged visit, or an admitted patient, and nothing else. */
+    @Test
+    void onlyEmergencyAndAdmittedVisitsAreInScope() {
+        assertThat(BreakGlass.isInScope(VisitPriority.EMERGENCY, VisitType.OUTPATIENT)).isTrue();
+        assertThat(BreakGlass.isInScope(VisitPriority.NORMAL, VisitType.EMERGENCY)).isTrue();
+        assertThat(BreakGlass.isInScope(VisitPriority.NORMAL, VisitType.ADMISSION)).isTrue();
+        assertThat(BreakGlass.isInScope(VisitPriority.NORMAL, VisitType.OUTPATIENT)).isFalse();
+        assertThat(BreakGlass.isInScope(VisitPriority.URGENT, VisitType.PHARMACY_ONLY)).isFalse();
     }
 }

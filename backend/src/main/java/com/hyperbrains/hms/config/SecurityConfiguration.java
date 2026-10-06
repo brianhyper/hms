@@ -400,8 +400,10 @@ public class SecurityConfiguration {
                     // pharmacy, because this is the one place where "who may move drug stock" is answered:
                     // widen it and that answer becomes "one of five roles". The ward records a dose against
                     // its own order instead, and the dispense happens in-process behind that.
-                    .requestMatchers(HttpMethod.POST, "/api/pharmacy-dispense/*/dispense").hasAnyAuthority(PHARMACY)
+                    .requestMatchers(HttpMethod.POST, "/api/pharmacy-dispense/*/dispense").hasAnyAuthority(PHARMACY, DOCTOR)
                     .requestMatchers(HttpMethod.GET, "/api/pharmacy-dispense/*/history").hasAnyAuthority(DOCTOR, PHARMACY, ADMIN, SUPER_ADMIN)
+                    // The break-glass review: Administration reads every override, after the fact, and nobody else.
+                    .requestMatchers(HttpMethod.GET, "/api/overrides").hasAnyAuthority(ADMIN, SUPER_ADMIN)
 
                     // ---- Referral workflow ----
                     // The letter is clinical content: it carries the reason for the referral, so the desk is

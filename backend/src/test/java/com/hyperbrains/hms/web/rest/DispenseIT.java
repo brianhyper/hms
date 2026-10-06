@@ -32,8 +32,11 @@ import com.hyperbrains.hms.repository.PrescriptionLineRepository;
 import com.hyperbrains.hms.repository.PrescriptionRepository;
 import com.hyperbrains.hms.repository.VisitRepository;
 import com.hyperbrains.hms.repository.VitalSignsRepository;
+import com.hyperbrains.hms.security.AuthoritiesConstants;
+import com.hyperbrains.hms.service.AuditActions;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
 import com.hyperbrains.hms.service.HospitalIdService;
+import com.hyperbrains.hms.service.OverrideService;
 import com.hyperbrains.hms.service.dto.VisitDTO;
 import com.hyperbrains.hms.service.dto.view.DispenseLineRequestDTO;
 import com.hyperbrains.hms.service.dto.view.DispenseRecordDTO;
@@ -53,6 +56,7 @@ import com.hyperbrains.hms.service.workflow.PrescriptionWorkflowService;
 import com.hyperbrains.hms.service.workflow.TriageService;
 import com.hyperbrains.hms.service.workflow.VisitIntakeService;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.AfterEach;
@@ -75,6 +79,9 @@ class DispenseIT {
 
     @Autowired
     private DispenseWorkflowService dispenseService;
+
+    @Autowired
+    private OverrideService overrideService;
 
     @Autowired
     private PaymentWorkflowService paymentService;
@@ -361,16 +368,118 @@ class DispenseIT {
         assertThat(reloadDrug().getCurrentStock()).isEqualTo(100);
     }
 
+    // ---------------------------------------------------------------- break-glass
+
+    /**
+     * Emergency medicine released before the bill is settled: allowed for an emergency-triaged visit, by pharmacy,
+     * with a reason, and recorded as its own override event. The bill is deliberately left alone, so it is still owed.
+     */
+    @Test
+    void emergencyMedicineIsReleasedBeforeTheBillIsSettledWithAReason() {
+        Prescribed prescribed = prescribe(5, false, VisitPriority.EMERGENCY);
+        Long billId = visitRepository.findById(prescribed.visitId()).orElseThrow().getBill().getId();
+        BigDecimal owed = billRepository.findById(billId).orElseThrow().getTotalAmount();
+
+        DispenseRequestDTO handOver = handOver(dispenseLine(prescribed.lineId(), 5));
+        handOver.setOverrideReason("Patient wheezing; the dose was given before the desk was reached");
+
+        PrescriptionViewDTO result = dispenseService.dispense(prescribed.prescriptionId(), handOver);
+
+        assertThat(result.getStatus()).isEqualTo(PrescriptionStatus.DISPENSED);
+        assertThat(reloadDrug().getCurrentStock()).isEqualTo(95);
+
+        assertThat(billRepository.findById(billId).orElseThrow().getStatus()).isNotEqualTo(BillStatus.PAID);
+        assertThat(billRepository.findById(billId).orElseThrow().getTotalAmount()).isEqualByComparingTo(owed);
+
+        assertThat(overrideService.recordedSince(Instant.EPOCH))
+            .anySatisfy(entry -> {
+                assertThat(entry.action()).isEqualTo(AuditActions.OVERRIDE_GRANTED);
+                assertThat(entry.entityId()).isEqualTo(String.valueOf(prescribed.prescriptionId()));
+                assertThat(entry.reason()).contains("wheezing");
+            });
+    }
+
+    /** Out of scope: an ordinary visit cannot release medicine before payment, reason or no reason. */
+    @Test
+    void anOrdinaryVisitCannotBeReleasedBeforePayment() {
+        Prescribed prescribed = prescribe(5, false, VisitPriority.NORMAL);
+
+        DispenseRequestDTO handOver = handOver(dispenseLine(prescribed.lineId(), 5));
+        handOver.setOverrideReason("Trying it on");
+
+        assertThatThrownBy(() -> dispenseService.dispense(prescribed.prescriptionId(), handOver))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("only once its bill is settled");
+
+        assertThat(reloadDrug().getCurrentStock()).isEqualTo(100);
+    }
+
+    /** In scope, but the override is nothing without a reason: the reason is what replaces the gate. */
+    @Test
+    void theEmergencyReleaseNeedsAReason() {
+        Prescribed prescribed = prescribe(5, false, VisitPriority.EMERGENCY);
+
+        assertThatThrownBy(() ->
+            dispenseService.dispense(prescribed.prescriptionId(), handOver(dispenseLine(prescribed.lineId(), 5)))
+        )
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .satisfies(thrown ->
+                assertThat(((BusinessRuleViolationException) thrown).getErrorKey()).isEqualTo("emergencyReleaseReasonRequired")
+            );
+
+        assertThat(reloadDrug().getCurrentStock()).isEqualTo(100);
+    }
+
+    /** A doctor at the point of care may release it too, which is why the dispense route admits one. */
+    @Test
+    @WithMockUser(value = "admin", authorities = AuthoritiesConstants.DOCTOR)
+    void aDoctorAtThePointOfCareMayReleaseItAsWell() {
+        Prescribed prescribed = prescribe(5, false, VisitPriority.EMERGENCY);
+
+        DispenseRequestDTO handOver = handOver(dispenseLine(prescribed.lineId(), 5));
+        handOver.setOverrideReason("Dose given on the ward round before the desk opened");
+
+        assertThat(dispenseService.dispense(prescribed.prescriptionId(), handOver).getStatus()).isEqualTo(
+            PrescriptionStatus.DISPENSED
+        );
+    }
+
+    /** A withdrawn prescription is never released, override or not. */
+    @Test
+    void breakGlassCannotReleaseAWithdrawnPrescription() {
+        Prescribed prescribed = prescribe(5, false, VisitPriority.EMERGENCY);
+        Prescription cancelled = prescriptionRepository.findById(prescribed.prescriptionId()).orElseThrow();
+        cancelled.setStatus(PrescriptionStatus.CANCELLED);
+        prescriptionRepository.save(cancelled);
+
+        DispenseRequestDTO handOver = handOver(dispenseLine(prescribed.lineId(), 5));
+        handOver.setOverrideReason("Emergency");
+
+        assertThatThrownBy(() -> dispenseService.dispense(prescribed.prescriptionId(), handOver))
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("never released");
+
+        assertThat(reloadDrug().getCurrentStock()).isEqualTo(100);
+    }
+
     // ---------------------------------------------------------------- helpers
 
-    private record Prescribed(Long prescriptionId, Long lineId) {}
+    private record Prescribed(Long prescriptionId, Long lineId, Long visitId) {}
 
     /**
      * A prescription taken as far as the pharmacy queue when {@code paid} is set, and only as far as
      * waiting for payment when it is not.
      */
     private Prescribed prescribe(int quantity, boolean paid) {
-        Visit visit = visitAwaitingDoctor();
+        return prescribe(quantity, paid, VisitPriority.NORMAL);
+    }
+
+    /**
+     * A prescription taken as far as the pharmacy queue when {@code paid} is set, and only as far as
+     * waiting for payment when it is not. The priority decides whether it is in the break-glass scope.
+     */
+    private Prescribed prescribe(int quantity, boolean paid, VisitPriority priority) {
+        Visit visit = visitAwaitingDoctor(priority);
         Long consultationId = consultationService.start(visit.getId(), new StartConsultationRequestDTO()).getId();
 
         PrescriptionLineRequestDTO line = new PrescriptionLineRequestDTO();
@@ -397,14 +506,14 @@ class DispenseIT {
 
         Prescription saved = prescriptionRepository.findById(placed.getPrescriptionId()).orElseThrow();
         Long lineId = prescriptionLineRepository.findWithDrugByPrescriptionId(saved.getId()).getFirst().getId();
-        return new Prescribed(saved.getId(), lineId);
+        return new Prescribed(saved.getId(), lineId, visit.getId());
     }
 
-    private Visit visitAwaitingDoctor() {
+    private Visit visitAwaitingDoctor(VisitPriority priority) {
         VisitIntakeRequestDTO intake = new VisitIntakeRequestDTO();
         intake.setPatientId(patient.getId());
         intake.setType(VisitType.OUTPATIENT);
-        intake.setPriority(VisitPriority.NORMAL);
+        intake.setPriority(priority);
         intake.setReasonForVisit("Dispense test");
         VisitDTO created = visitIntakeService.createVisit(intake);
 

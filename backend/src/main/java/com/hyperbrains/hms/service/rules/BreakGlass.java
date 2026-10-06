@@ -1,5 +1,7 @@
 package com.hyperbrains.hms.service.rules;
 
+import com.hyperbrains.hms.domain.enumeration.VisitPriority;
+import com.hyperbrains.hms.domain.enumeration.VisitType;
 import com.hyperbrains.hms.security.AuthoritiesConstants;
 import java.util.Collection;
 import java.util.Set;
@@ -29,5 +31,18 @@ public final class BreakGlass {
     /** Whether these authorities may invoke it. */
     public static boolean mayBeInvokedBy(Collection<String> authorities) {
         return authorities.stream().anyMatch(INVOKERS::contains);
+    }
+
+    /**
+     * Whether a visit is in the scope the client confirmed for break-glass: an emergency-triaged visit, or an admitted
+     * patient. Nothing outside it may be released before payment.
+     *
+     * <p>Emergency is the visit priority, which is what triage sets and what the queues sort on; the emergency visit
+     * type is checked as well because a desk can hand one in at the door. An admitted patient is in scope because a
+     * prescription written before admission stays in the outpatient payment cycle, and a patient in a bed is not
+     * standing at a cash desk.
+     */
+    public static boolean isInScope(VisitPriority priority, VisitType type) {
+        return priority == VisitPriority.EMERGENCY || type == VisitType.EMERGENCY || type == VisitType.ADMISSION;
     }
 }

@@ -5,6 +5,7 @@ import com.hyperbrains.hms.domain.DispenseLine;
 import com.hyperbrains.hms.domain.Prescription;
 import com.hyperbrains.hms.domain.PrescriptionLine;
 import com.hyperbrains.hms.domain.User;
+import com.hyperbrains.hms.domain.Visit;
 import com.hyperbrains.hms.domain.enumeration.PrescriptionStatus;
 import com.hyperbrains.hms.repository.DispenseLineRepository;
 import com.hyperbrains.hms.repository.DispenseRepository;
@@ -15,11 +16,14 @@ import com.hyperbrains.hms.security.SecurityUtils;
 import com.hyperbrains.hms.service.AuditActions;
 import com.hyperbrains.hms.service.AuditLogService;
 import com.hyperbrains.hms.service.BusinessRuleViolationException;
+import com.hyperbrains.hms.service.OverrideService;
 import com.hyperbrains.hms.service.PharmacyStockService;
 import com.hyperbrains.hms.service.dto.view.DispenseLineRequestDTO;
 import com.hyperbrains.hms.service.dto.view.DispenseRecordDTO;
 import com.hyperbrains.hms.service.dto.view.DispenseRequestDTO;
+import com.hyperbrains.hms.service.dto.view.OverrideRequestDTO;
 import com.hyperbrains.hms.service.dto.view.PrescriptionViewDTO;
+import com.hyperbrains.hms.service.rules.BreakGlass;
 import com.hyperbrains.hms.service.rules.DispenseProgress;
 import com.hyperbrains.hms.service.rules.DrugSnapshot;
 import com.hyperbrains.hms.service.rules.PrescriptionLifecycle;
@@ -57,6 +61,8 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
 
     private final AuditLogService auditLogService;
 
+    private final OverrideService overrideService;
+
     public DispenseWorkflowServiceImpl(
         PrescriptionRepository prescriptionRepository,
         PrescriptionLineRepository prescriptionLineRepository,
@@ -64,7 +70,8 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
         DispenseLineRepository dispenseLineRepository,
         UserRepository userRepository,
         PharmacyStockService pharmacyStockService,
-        AuditLogService auditLogService
+        AuditLogService auditLogService,
+        OverrideService overrideService
     ) {
         this.prescriptionRepository = prescriptionRepository;
         this.prescriptionLineRepository = prescriptionLineRepository;
@@ -73,6 +80,7 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
         this.userRepository = userRepository;
         this.pharmacyStockService = pharmacyStockService;
         this.auditLogService = auditLogService;
+        this.overrideService = overrideService;
     }
 
     @Override
@@ -80,18 +88,12 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
         Prescription prescription = loadPrescription(prescriptionId);
 
         if (!PrescriptionLifecycle.isDispensable(prescription.getStatus())) {
-            // One message covering both reasons, because both mean the same thing to the counter. Naming
-            // only the bill would send a pharmacist looking for a payment problem on a prescription that
-            // has been withdrawn.
-            throw BusinessRuleViolationException.of(
-                "prescriptionNotReadyForDispense",
-                "prescription",
-                "Prescription " +
-                prescriptionId +
-                " is " +
-                prescription.getStatus() +
-                " and cannot be handed over. Medicine is released only once its bill is settled, and a withdrawn prescription is never released"
-            );
+            if (!PrescriptionLifecycle.AWAITING_PAYMENT.contains(prescription.getStatus())) {
+                // Withdrawn, or already handed over: the medicine is not owed at the counter, so an override cannot
+                // help. Break-glass releases what is still behind the payment gate and nothing else.
+                throw notReadyForDispense(prescription);
+            }
+            releaseBeforePayment(prescription, request);
         }
 
         List<PrescriptionLine> orderedLines = prescriptionLineRepository.findWithDrugByPrescriptionId(prescriptionId);
@@ -230,6 +232,51 @@ public class DispenseWorkflowServiceImpl implements DispenseWorkflowService {
                 );
             })
             .toList();
+    }
+
+    /**
+     * Break-glass: medicine released before the bill is settled, for a patient in the confirmed scope, by a pharmacist
+     * or doctor at the point of care, with a reason, recorded as its own audit event. The bill is deliberately left
+     * alone, so it stays outstanding and is still collected — this is a receivable, not a write-off.
+     *
+     * <p>Refused with the ordinary message when the caller is not one of the two roles or the visit is out of scope;
+     * refused with its own message when a reason is all that is missing, so the counter knows what to supply. A
+     * withdrawn prescription never reaches here.
+     */
+    private void releaseBeforePayment(Prescription prescription, DispenseRequestDTO request) {
+        Visit visit = prescription.getVisit();
+        boolean inScope = BreakGlass.isInScope(visit.getPriority(), visit.getType());
+        boolean mayInvoke = BreakGlass.mayBeInvokedBy(SecurityUtils.getCurrentUserAuthorities());
+
+        if (!(inScope && mayInvoke)) {
+            throw notReadyForDispense(prescription);
+        }
+        if (request.getOverrideReason() == null || request.getOverrideReason().isBlank()) {
+            throw BusinessRuleViolationException.of(
+                "emergencyReleaseReasonRequired",
+                "prescription",
+                "Releasing medicine before the bill is settled is an override, so it must say why; supply overrideReason."
+            );
+        }
+
+        OverrideRequestDTO override = new OverrideRequestDTO();
+        override.setOverriddenEntity("Prescription");
+        override.setOverriddenEntityId(String.valueOf(prescription.getId()));
+        override.setReason(request.getOverrideReason());
+        overrideService.record(override);
+    }
+
+    /** One message covering both reasons, because both mean the same thing to the counter. */
+    private static BusinessRuleViolationException notReadyForDispense(Prescription prescription) {
+        return BusinessRuleViolationException.of(
+            "prescriptionNotReadyForDispense",
+            "prescription",
+            "Prescription " +
+            prescription.getId() +
+            " is " +
+            prescription.getStatus() +
+            " and cannot be handed over. Medicine is released only once its bill is settled, and a withdrawn prescription is never released"
+        );
     }
 
     private Prescription loadPrescription(Long prescriptionId) {

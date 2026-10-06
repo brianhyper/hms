@@ -18,6 +18,13 @@ public class DispenseRequestDTO implements Serializable {
     @Size(max = 10000)
     private String note;
 
+    /**
+     * Why medicine is being released before the bill is settled. Required only for a break-glass release, absent on
+     * an ordinary hand-over: the reason is the control that replaces the payment gate, so it is never optional there.
+     */
+    @Size(max = 10000)
+    private String overrideReason;
+
     @NotEmpty
     @Size(max = 50)
     @Valid
@@ -29,6 +36,14 @@ public class DispenseRequestDTO implements Serializable {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getOverrideReason() {
+        return overrideReason;
+    }
+
+    public void setOverrideReason(String overrideReason) {
+        this.overrideReason = overrideReason;
     }
 
     public List<DispenseLineRequestDTO> getLines() {
